@@ -1,0 +1,14 @@
+D:\new folder3\wallpaperdock\WallpaperDock\obj\Debug\net10.0\WallpaperDock.GeneratedMSBuildEditorConfig.editorconfig
+D:\new folder3\wallpaperdock\WallpaperDock\obj\Debug\net10.0\WallpaperDock.AssemblyInfoInputs.cache
+D:\new folder3\wallpaperdock\WallpaperDock\obj\Debug\net10.0\WallpaperDock.AssemblyInfo.cs
+D:\new folder3\wallpaperdock\WallpaperDock\obj\Debug\net10.0\WallpaperDock.csproj.CoreCompileInputs.cache
+D:\new folder3\wallpaperdock\WallpaperDock\bin\Debug\net10.0\WallpaperDock.exe
+D:\new folder3\wallpaperdock\WallpaperDock\bin\Debug\net10.0\WallpaperDock.deps.json
+D:\new folder3\wallpaperdock\WallpaperDock\bin\Debug\net10.0\WallpaperDock.runtimeconfig.json
+D:\new folder3\wallpaperdock\WallpaperDock\bin\Debug\net10.0\WallpaperDock.dll
+D:\new folder3\wallpaperdock\WallpaperDock\bin\Debug\net10.0\WallpaperDock.pdb
+D:\new folder3\wallpaperdock\WallpaperDock\obj\Debug\net10.0\WallpaperDock.dll
+D:\new folder3\wallpaperdock\WallpaperDock\obj\Debug\net10.0\refint\WallpaperDock.dll
+D:\new folder3\wallpaperdock\WallpaperDock\obj\Debug\net10.0\WallpaperDock.pdb
+D:\new folder3\wallpaperdock\WallpaperDock\obj\Debug\net10.0\WallpaperDock.genruntimeconfig.cache
+D:\new folder3\wallpaperdock\WallpaperDock\obj\Debug\net10.0\ref\WallpaperDock.dll
