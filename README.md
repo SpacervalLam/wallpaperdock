@@ -4,14 +4,13 @@ WallpaperDock 是一个专为 Wallpaper Engine 设计的辅助工具，提供了
 
 ## 功能特性
 
-### 🎨 直观的界面设计
+### 🎨 界面设计
 - 右侧停靠式半透明窗口，不干扰桌面工作
 - 平滑的滚动和惯性效果
 - 响应式布局，支持不同屏幕尺寸
 
-### 📁 强大的壁纸管理
+### 📁 壁纸管理
 - 自动扫描 Steam 库中的所有 Wallpaper Engine 壁纸
-- 支持壁纸收藏功能
 - 自定义壁纸分类和分组
 - 为壁纸设置别名
 - R18 内容标记和过滤
@@ -31,17 +30,16 @@ WallpaperDock 是一个专为 Wallpaper Engine 设计的辅助工具，提供了
 - 图片缓存机制
 - 平滑的界面动画
 
-### ⚙️ 系统集成
-- 系统托盘图标，支持最小化到托盘
-- 自动隐藏功能，鼠标离开时自动隐藏
-- 支持 Windows 11 的 Mica/Acrylic 效果
+## 程序截图
+
+![WallpaperDock 程序截图](docs/shot.png)
 
 ## 系统要求
 
 - Windows 10 版本 19041.0 或更高版本
 - Windows 11
 - .NET 6.0 或更高版本
-- Steam 和 Wallpaper Engine 已安装
+- Wallpaper Engine 已安装
 
 ## 安装说明
 
@@ -65,8 +63,8 @@ WallpaperDock 是一个专为 Wallpaper Engine 设计的辅助工具，提供了
 
 ### 方法二：使用发布版本
 1. 下载最新的发布版本
-2. 解压到任意文件夹
-3. 运行 `WallpaperDockWinUI.exe` 可执行文件
+2. 运行安装程序 `WallpaperDockSetup.exe` 并按照提示完成安装
+3. 安装完成后，启动应用
 
 ## 使用方法
 
@@ -86,40 +84,6 @@ WallpaperDock 是一个专为 Wallpaper Engine 设计的辅助工具，提供了
 ### 系统托盘操作
 - **显示/隐藏窗口**：点击托盘图标
 - **退出应用**：右键点击托盘图标，选择退出
-
-## 项目结构
-
-```
-WallpaperDock/
-├── WallpaperDock/           # 控制台应用程序
-│   ├── Program.cs
-│   └── WallpaperDock.csproj
-├── WallpaperDockWinUI/      # WinUI 3 应用程序（主项目）
-│   ├── App.xaml             # 应用程序入口
-│   ├── App.xaml.cs
-│   ├── Assets/              # 应用资源
-│   ├── Converters/          # 数据转换器
-│   ├── Services/            # 核心服务
-│   │   ├── AutoHideService.cs      # 自动隐藏服务
-│   │   ├── ColorService.cs         # 颜色服务
-│   │   ├── FavoritesService.cs     # 收藏管理服务
-│   │   ├── ImageCacheService.cs    # 图片缓存服务
-│   │   ├── MonitorService.cs       # 显示器服务
-│   │   ├── SteamLibraryService.cs  # Steam 库服务
-│   │   ├── TrayIconService.cs      # 托盘图标服务
-│   │   └── WallpaperEngineService.cs # Wallpaper Engine 服务
-│   ├── ViewModels/          # 视图模型
-│   │   └── MainViewModel.cs
-│   ├── Views/               # 视图
-│   │   ├── InputDialog.xaml
-│   │   ├── InputDialog.xaml.cs
-│   │   ├── MainPage.xaml
-│   │   ├── MainPage.xaml.cs
-│   │   ├── WallpaperItem.xaml
-│   │   └── WallpaperItem.xaml.cs
-│   └── WallpaperDockWinUI.csproj
-└── README.md
-```
 
 ## 技术栈
 

@@ -438,7 +438,8 @@ namespace WallpaperDockWinUI.ViewModels
             {
                 string searchLower = SearchText.ToLower();
                 filtered = filtered.Where(w =>
-                    w.Title?.ToLower().Contains(searchLower) ?? false
+                    (w.Alias?.ToLower().Contains(searchLower) ?? false) ||
+                    (w.Title?.ToLower().Contains(searchLower) ?? false)
                 ).ToList();
             }
 
