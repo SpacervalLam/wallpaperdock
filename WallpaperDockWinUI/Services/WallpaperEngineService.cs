@@ -18,7 +18,7 @@ namespace WallpaperDockWinUI.Services
         // 新增元数据字段（UI / 本地设置）
         public string? Alias { get; set; }
         public bool IsR18 { get; set; }
-        public string? Group { get; set; }
+        public List<string>? Groups { get; set; }
 
         public override string ToString()
         {

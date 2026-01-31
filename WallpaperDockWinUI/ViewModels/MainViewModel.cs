@@ -105,9 +105,36 @@ namespace WallpaperDockWinUI.ViewModels
             _monitorService = monitorService;
             _colorService = colorService;
             _favoritesService = favoritesService;
+            
+            // 订阅 FavoritesService 的 DataChanged 事件，以便在数据变化时自动刷新 UI
+            _favoritesService.DataChanged += FavoritesService_DataChanged;
+            
             LoadMonitors();
             LoadCategories();
             LoadGroups();
+        }
+        
+        private void FavoritesService_DataChanged(object? sender, Services.DataChangedEventArgs e)
+        {
+            // 根据数据类型执行相应的刷新操作
+            if (e.DataType == "groups")
+            {
+                LoadGroups();
+                FilterWallpapers();
+            }
+            else if (e.DataType == "categories")
+            {
+                LoadCategories();
+                FilterWallpapers();
+            }
+            else if (e.DataType == "favorites")
+            {
+                FilterWallpapers();
+            }
+            else if (e.DataType == "metadata")
+            {
+                FilterWallpapers();
+            }
         }
 
         public async Task LoadWallpapersAsync()
@@ -153,10 +180,10 @@ namespace WallpaperDockWinUI.ViewModels
                     wallpaper.IsFavorite = _favoritesService.IsFavorite(wallpaper.ProjectJsonPath!);
                     wallpaper.Category = _favoritesService.GetCategory(wallpaper.ProjectJsonPath!);
 
-                    // load alias, r18 flag and group
+                    // load alias, r18 flag and groups
                     wallpaper.Alias = _favoritesService.GetAlias(wallpaper.ProjectJsonPath!);
                     wallpaper.IsR18 = _favoritesService.IsR18(wallpaper.ProjectJsonPath!);
-                    wallpaper.Group = _favoritesService.GetGroup(wallpaper.ProjectJsonPath!);
+                    wallpaper.Groups = _favoritesService.GetGroups(wallpaper.ProjectJsonPath!);
                 }
 
                 _wallpapers = allWallpapers;
@@ -188,7 +215,14 @@ namespace WallpaperDockWinUI.ViewModels
         // Groups and R18 filtering
         private List<string> _groups = new List<string>();
         private string _selectedGroup = "All";
-        private bool _showR18 = true;
+        private R18FilterMode _r18Mode = R18FilterMode.All;
+
+        public enum R18FilterMode
+        {
+            All,        // 显示全部（包括R18）
+            Hide,       // 不显示R18
+            Only        // 只显示R18
+        }
 
         public List<string> Groups
         {
@@ -208,21 +242,28 @@ namespace WallpaperDockWinUI.ViewModels
             }
         }
 
-        public bool ShowR18
+        public R18FilterMode R18Mode
         {
-            get => _showR18;
+            get => _r18Mode;
             set
             {
-                if (SetProperty(ref _showR18, value))
+                if (SetProperty(ref _r18Mode, value))
                 {
                     FilterWallpapers();
                 }
             }
         }
 
+        // 保持向后兼容
+        public bool ShowR18
+        {
+            get => _r18Mode != R18FilterMode.Hide;
+            set => _r18Mode = value ? R18FilterMode.All : R18FilterMode.Hide;
+        }
+
         public void LoadGroups()
         {
-            var groups = _favoritesService.GetGroups();
+            var groups = _favoritesService.GetAllGroups();
             groups.Sort();
             groups.Insert(0, "All");
             Groups = groups;
@@ -238,6 +279,73 @@ namespace WallpaperDockWinUI.ViewModels
         public void RefreshFilters()
         {
             FilterWallpapers();
+        }
+
+        public void DeleteGroup(string groupName)
+        {
+            // 跳过默认分组
+            if (groupName == "All" || groupName == "Favorites")
+                return;
+            
+            // 从所有壁纸中移除该分组
+            foreach (var wallpaper in _wallpapers)
+            {
+                if (wallpaper.Groups != null && wallpaper.Groups.Contains(groupName))
+                {
+                    wallpaper.Groups.Remove(groupName);
+                    if (wallpaper.Groups.Count == 0)
+                    {
+                        wallpaper.Groups = null;
+                    }
+                    if (!string.IsNullOrEmpty(wallpaper.ProjectJsonPath))
+                    {
+                        _favoritesService.RemoveGroupFromWallpaper(wallpaper.ProjectJsonPath, groupName);
+                    }
+                }
+            }
+            
+            // 从分组列表中移除该分组
+            _favoritesService.RemoveGroup(groupName);
+            
+            // 如果删除的是当前选中的分组，切换到 All
+            if (SelectedGroup == groupName)
+            {
+                SelectedGroup = "All";
+            }
+            
+            // 重新加载分组列表
+            LoadGroups();
+        }
+
+        public void AddGroup(string groupName)
+        {
+            if (!string.IsNullOrWhiteSpace(groupName))
+            {
+                _favoritesService.AddGroup(groupName);
+                LoadGroups();
+            }
+        }
+
+        public void RenameGroup(string oldGroupName, string newGroupName)
+        {
+            if (string.IsNullOrWhiteSpace(oldGroupName) || string.IsNullOrWhiteSpace(newGroupName))
+                return;
+            
+            if (oldGroupName == newGroupName)
+                return;
+            
+            // 跳过默认分组
+            if (oldGroupName == "All" || oldGroupName == "Favorites")
+                return;
+            
+            // 通过 FavoritesService 重命名分组
+            _favoritesService.RenameGroup(oldGroupName, newGroupName);
+            
+            // 如果重命名的是当前选中的分组，更新选中分组
+            if (SelectedGroup == oldGroupName)
+            {
+                SelectedGroup = newGroupName;
+            }
         }
 
         public void SwitchWallpaper(int monitorIndex = -1)
@@ -307,13 +415,22 @@ namespace WallpaperDockWinUI.ViewModels
             // Filter by group (if selected)
             if (!string.IsNullOrWhiteSpace(SelectedGroup) && SelectedGroup != "All")
             {
-                filtered = filtered.Where(w => (w.Group ?? string.Empty) == SelectedGroup).ToList();
+                filtered = filtered.Where(w => w.Groups != null && w.Groups.Contains(SelectedGroup)).ToList();
             }
 
-            // Filter out R18 items if user disabled showing them
-            if (!ShowR18)
+            // Filter R18 items based on mode
+            switch (R18Mode)
             {
-                filtered = filtered.Where(w => !w.IsR18).ToList();
+                case R18FilterMode.Hide:
+                    filtered = filtered.Where(w => !w.IsR18).ToList();
+                    break;
+                case R18FilterMode.Only:
+                    filtered = filtered.Where(w => w.IsR18).ToList();
+                    break;
+                case R18FilterMode.All:
+                default:
+                    // Show all wallpapers (including R18)
+                    break;
             }
 
             // Filter by search text

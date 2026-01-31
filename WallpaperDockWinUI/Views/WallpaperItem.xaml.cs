@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media.Imaging;
 using System;
 using System.Threading.Tasks;
@@ -70,18 +71,50 @@ namespace WallpaperDockWinUI.Views
             menu.Items.Add(renameItem);
 
             var groupSub = new MenuFlyoutSubItem { Text = "加入分组" };
-            var groups = fav?.GetGroups() ?? new System.Collections.Generic.List<string>();
+            // 设置最大高度，确保分组数量过多时显示滚动条
+            groupSub.MaxHeight = 400;
+            
+            var groups = fav?.GetAllGroups() ?? new System.Collections.Generic.List<string>();
+            var wallpaperGroups = Wallpaper.Groups ?? new System.Collections.Generic.List<string>();
             foreach (var g in groups)
             {
-                var gi = new MenuFlyoutItem { Text = g };
+                var gi = new ToggleMenuFlyoutItem { Text = g, IsChecked = wallpaperGroups.Contains(g) };
                 gi.Click += (s, ev) =>
                 {
-                    Wallpaper.Group = g;
-                    fav?.SetGroup(Wallpaper.ProjectJsonPath, g);
+                    if (s is ToggleMenuFlyoutItem item)
+                    {
+                        if (item.IsChecked)
+                        {
+                            // 添加分组
+                            if (!wallpaperGroups.Contains(g))
+                            {
+                                wallpaperGroups.Add(g);
+                                Wallpaper.Groups = wallpaperGroups;
+                                fav?.AddGroupToWallpaper(Wallpaper.ProjectJsonPath, g);
+                            }
+                        }
+                        else
+                        {
+                            // 移除分组
+                            if (wallpaperGroups.Contains(g))
+                            {
+                                wallpaperGroups.Remove(g);
+                                if (wallpaperGroups.Count == 0)
+                                {
+                                    Wallpaper.Groups = null;
+                                }
+                                else
+                                {
+                                    Wallpaper.Groups = wallpaperGroups;
+                                }
+                                fav?.RemoveGroupFromWallpaper(Wallpaper.ProjectJsonPath, g);
+                            }
+                        }
 
-                    // 刷新 groups 列表和过滤
-                    var vm = App.Current.Services.GetService(typeof(ViewModels.MainViewModel)) as ViewModels.MainViewModel;
-                    vm?.RefreshGroupsAndFilter();
+                        // 刷新 groups 列表和过滤
+                        var vm = App.Current.Services.GetService(typeof(ViewModels.MainViewModel)) as ViewModels.MainViewModel;
+                        vm?.RefreshGroupsAndFilter();
+                    }
                 };
                 groupSub.Items.Add(gi);
             }
@@ -135,7 +168,7 @@ namespace WallpaperDockWinUI.Views
         {
             var dlg = new InputDialog { TitleText = "新增分组", Input = string.Empty };
             dlg.RequireNonEmpty = true;
-            var existingGroups = fav?.GetGroups() ?? new System.Collections.Generic.List<string>();
+            var existingGroups = fav?.GetAllGroups() ?? new System.Collections.Generic.List<string>();
             var normalizedSet = new System.Collections.Generic.HashSet<string>(System.StringComparer.InvariantCultureIgnoreCase);
             foreach (var g in existingGroups)
             {
@@ -171,8 +204,23 @@ namespace WallpaperDockWinUI.Views
                 var group = NormalizeGroupName(groupRaw);
                 if (!string.IsNullOrWhiteSpace(group))
                 {
-                    Wallpaper.Group = group;
-                    fav?.SetGroup(Wallpaper.ProjectJsonPath, group);
+                    // 获取MainViewModel实例
+                    var vm = App.Current.Services.GetService(typeof(ViewModels.MainViewModel)) as ViewModels.MainViewModel;
+                    
+                    // 通过MainViewModel添加分组，确保分组列表自动刷新
+                    vm?.AddGroup(group);
+
+                    // 添加分组到壁纸
+                    var wallpaperGroups = Wallpaper.Groups ?? new System.Collections.Generic.List<string>();
+                    if (!wallpaperGroups.Contains(group))
+                    {
+                        wallpaperGroups.Add(group);
+                        Wallpaper.Groups = wallpaperGroups;
+                        fav?.AddGroupToWallpaper(Wallpaper.ProjectJsonPath, group);
+                    }
+
+                    // 刷新过滤
+                    vm?.RefreshFilters();
                 }
             }
         }

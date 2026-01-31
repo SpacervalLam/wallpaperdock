@@ -24,7 +24,6 @@ namespace WallpaperDockWinUI.Views
         private Button? _allButton;
         private Button? _favoritesButton;
         private ComboBox? _groupComboBox;
-        private ToggleButton? _r18Toggle;
         private ProgressRing? _loadingRing;
         private GridView? _wallpaperList;
         private TextBlock? _emptyText;
@@ -52,10 +51,16 @@ namespace WallpaperDockWinUI.Views
 
         private void BuildUI()
         {
-            // Clear existing content
             MainGrid.Children.Clear();
             MainGrid.RowDefinitions.Clear();
-            MainGrid.ColumnDefinitions.Clear();
+
+            // 定义三行布局
+            // 行 0: 分类筛选栏 (全部/收藏/分组)
+            // 行 1: 搜索栏 (新位置)
+            // 行 2: 壁纸列表 (填充剩余空间)
+            MainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // CategoryBar
+            MainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // SearchBar
+            MainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // List
 
             // Background overlay to ensure semi-transparent background even when window is inactive
             var backgroundOverlay = new Border
@@ -66,114 +71,17 @@ namespace WallpaperDockWinUI.Views
             };
             MainGrid.Children.Add(backgroundOverlay);
 
-            // Create top bar
-            _topBar = new Grid
-            {
-                VerticalAlignment = VerticalAlignment.Top,
-                Height = 70, // 增加高度，确保完全覆盖系统标题栏
-                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(180, 20, 20, 20)), // 半透明顶栏
-                Margin = new Thickness(0, 0, 0, 0)
-            };
+            // --- 1. 分类筛选栏 ---
+            _categoryBar = BuildCategoryBar();
+            Grid.SetRow(_categoryBar, 0);
+            MainGrid.Children.Add(_categoryBar);
 
-            StackPanel topBarContent = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(12, 0, 12, 0)
-            };
+            // --- 2. 搜索栏 (美化后的 UI) ---
+            var searchContainer = BuildModernSearchBar();
+            Grid.SetRow(searchContainer, 1);
+            MainGrid.Children.Add(searchContainer);
 
-            // Search box
-            _searchBox = new TextBox
-            {
-                PlaceholderText = "Search wallpapers...",
-                Width = 200,
-                Height = 36,
-                FontSize = 14,
-                Foreground = new SolidColorBrush(Microsoft.UI.Colors.Black),
-                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)), // 半透明搜索栏
-                BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(60, 0, 0, 0)),
-                BorderThickness = new Thickness(0),
-                Padding = new Thickness(16, 8, 16, 8)
-            };
-            _searchBox.TextChanged += SearchBox_TextChanged;
-
-            topBarContent.Children.Add(_searchBox);
-            _topBar.Children.Add(topBarContent);
-
-            // Create category bar
-            _categoryBar = new Grid
-            {
-                VerticalAlignment = VerticalAlignment.Top,
-                Height = 40,
-                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(160, 30, 30, 30)), // 半透明分类栏
-                Margin = new Thickness(0, 60, 0, 0)
-            };
-
-            // Use a Grid with two columns: left for filters, right for the R18 toggle so it stays visible
-            var categoryContentGrid = new Grid
-            {
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(12, 0, 12, 0)
-            };
-            categoryContentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            categoryContentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            // Left stack for filter controls (keeps them grouped)
-            var leftStack = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-
-            // Group filter 下拉（减小默认宽度并限制最大宽度）
-            _groupComboBox = new ComboBox
-            {
-                Width = 150,
-                MaxWidth = 220,
-                MinWidth = 80,
-                Height = 32,
-                Margin = new Thickness(0, 0, 10, 0),
-                HorizontalAlignment = HorizontalAlignment.Left
-            };
-            _groupComboBox.ItemsSource = ViewModel.Groups;
-            _groupComboBox.SelectedItem = ViewModel.SelectedGroup;
-            _groupComboBox.SelectionChanged += (s, e) =>
-            {
-                if (_groupComboBox.SelectedItem is string g)
-                {
-                    ViewModel.SelectedGroup = g;
-                    UpdateUI();
-                }
-            };
-
-            leftStack.Children.Add(_groupComboBox);
-
-            Grid.SetColumn(leftStack, 0);
-            categoryContentGrid.Children.Add(leftStack);
-
-            // 显示/隐藏 R18 切换（保持固定宽度并右对齐）
-            _r18Toggle = new ToggleButton
-            {
-                Content = "R18",
-                Width = 64,
-                Height = 32,
-                IsChecked = ViewModel.ShowR18,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                Margin = new Thickness(8, 0, 0, 0)
-            };
-            _r18Toggle.Checked += (s, e) => { ViewModel.ShowR18 = true; UpdateUI(); };
-            _r18Toggle.Unchecked += (s, e) => { ViewModel.ShowR18 = false; UpdateUI(); };
-
-            Grid.SetColumn(_r18Toggle, 1);
-            categoryContentGrid.Children.Add(_r18Toggle);
-
-            // Subscribe to ViewModel changes so we can refresh the group list UI
-            ViewModel.PropertyChanged += ViewModel_PropertyChanged;
-            _categoryBar.Children.Add(categoryContentGrid);
-
+            // --- 3. 壁纸列表 ---
             // Create loading ring
             _loadingRing = new ProgressRing
             {
@@ -183,13 +91,14 @@ namespace WallpaperDockWinUI.Views
                 VerticalAlignment = VerticalAlignment.Center,
                 Visibility = Visibility.Visible
             };
+            Grid.SetRow(_loadingRing, 2);
+            MainGrid.Children.Add(_loadingRing);
 
             // Create wallpaper grid using GridView to display wallpaper items in a grid
             var gridView = new GridView
             {
                 IsItemClickEnabled = true,
                 SelectionMode = ListViewSelectionMode.None,
-                Margin = new Thickness(6, 110, 6, 20),
                 Visibility = Visibility.Collapsed,
                 Padding = new Thickness(12),
                 HorizontalAlignment = HorizontalAlignment.Stretch,
@@ -224,6 +133,8 @@ namespace WallpaperDockWinUI.Views
 
             _wallpaperList = gridView;
             _wallpaperList.ItemClick += WallpaperList_ItemClick;
+            Grid.SetRow(_wallpaperList, 2);
+            MainGrid.Children.Add(_wallpaperList);
 
             // Create empty text
             _emptyText = new TextBlock
@@ -236,13 +147,269 @@ namespace WallpaperDockWinUI.Views
                 VerticalAlignment = VerticalAlignment.Center,
                 Visibility = Visibility.Collapsed
             };
-
-            // Add all elements to main grid
-            MainGrid.Children.Add(_topBar);
-            MainGrid.Children.Add(_categoryBar);
-            MainGrid.Children.Add(_loadingRing);
-            MainGrid.Children.Add(_wallpaperList);
+            Grid.SetRow(_emptyText, 2);
             MainGrid.Children.Add(_emptyText);
+        }
+
+        private Grid BuildCategoryBar()
+        {
+            var categoryBar = new Grid
+            {
+                Height = 40,
+                Padding = new Thickness(16, 0, 16, 0),
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(160, 30, 30, 30)) // 半透明分类栏
+            };
+
+            // Use a Grid with two columns: left for filters, right for the R18 toggle so it stays visible
+            var categoryContentGrid = new Grid
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            categoryContentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            categoryContentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            // Left stack for filter controls (keeps them grouped)
+            var leftStack = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            // Group filter 下拉（减小默认宽度并限制最大宽度）
+            _groupComboBox = new ComboBox
+            {
+                Width = 150,
+                MaxWidth = 220,
+                MinWidth = 80,
+                Height = 32,
+                Margin = new Thickness(0, 0, 10, 0),
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+
+            // 创建一个简单的右键菜单
+            MenuFlyout contextMenu = new MenuFlyout();
+            
+            // 添加刷新分组选项
+            MenuFlyoutItem refreshItem = new MenuFlyoutItem {
+                Text = "刷新分组",
+                Icon = new SymbolIcon(Symbol.Refresh)
+            };
+            refreshItem.Click += (s, e) => {
+                ViewModel.LoadGroups();
+            };
+            contextMenu.Items.Add(refreshItem);
+            
+            // 添加分隔符
+            contextMenu.Items.Add(new MenuFlyoutSeparator());
+            
+            // 添加管理分组选项
+            MenuFlyoutItem manageGroupsItem = new MenuFlyoutItem {
+                Text = "管理分组",
+                Icon = new SymbolIcon(Symbol.Manage)
+            };
+            manageGroupsItem.Click += async (s, e) => {
+                // 显示分组管理对话框或菜单
+                MenuFlyout manageMenu = new MenuFlyout();
+                
+                // 添加新增分组选项
+                MenuFlyoutItem addGroupItem = new MenuFlyoutItem {
+                    Text = "新增分组",
+                    Icon = new SymbolIcon(Symbol.Add)
+                };
+                addGroupItem.Click += async (s2, e2) => {
+                    var dlg = new InputDialog { TitleText = "新增分组", Input = string.Empty };
+                    dlg.RequireNonEmpty = true;
+                    
+                    bool ok = await dlg.ShowCenteredAsync();
+                    if (ok)
+                    {
+                        string groupName = dlg.Input?.Trim() ?? string.Empty;
+                        if (!string.IsNullOrWhiteSpace(groupName))
+                        {
+                            ViewModel.AddGroup(groupName);
+                        }
+                    }
+                };
+                manageMenu.Items.Add(addGroupItem);
+                
+                // 添加分隔符
+                manageMenu.Items.Add(new MenuFlyoutSeparator());
+                
+                // 添加现有分组及其操作
+                bool hasCustomGroups = false;
+                foreach (var group in ViewModel.Groups) {
+                    if (group == "All" || group == "Favorites")
+                        continue;
+                    
+                    hasCustomGroups = true;
+                    
+                    MenuFlyoutSubItem groupItem = new MenuFlyoutSubItem {
+                        Text = group
+                    };
+                    
+                    // 删除分组选项
+                    MenuFlyoutItem deleteItem = new MenuFlyoutItem {
+                        Text = "删除",
+                        Icon = new SymbolIcon(Symbol.Delete)
+                    };
+                    deleteItem.Click += (s2, e2) => {
+                        ViewModel.DeleteGroup(group);
+                    };
+                    groupItem.Items.Add(deleteItem);
+                    
+                    // 重命名分组选项
+                    MenuFlyoutItem renameItem = new MenuFlyoutItem {
+                        Text = "重命名",
+                        Icon = new SymbolIcon(Symbol.Edit)
+                    };
+                    renameItem.Click += async (s2, e2) => {
+                        var dlg = new InputDialog { TitleText = "重命名分组", Input = group };
+                        dlg.RequireNonEmpty = true;
+                        
+                        var existingGroups = ViewModel.Groups.Where(g => g != "All" && g != "Favorites").ToList();
+                        dlg.Validator = (text) => {
+                            if (string.IsNullOrWhiteSpace(text))
+                                return "名称不能为空";
+                            if (text != group && existingGroups.Contains(text))
+                                return "分组名称已存在";
+                            return null;
+                        };
+                        
+                        bool ok = await dlg.ShowCenteredAsync();
+                        if (ok)
+                        {
+                            string newGroupName = dlg.Input?.Trim() ?? string.Empty;
+                            if (!string.IsNullOrWhiteSpace(newGroupName) && newGroupName != group)
+                            {
+                                ViewModel.RenameGroup(group, newGroupName);
+                            }
+                        }
+                    };
+                    groupItem.Items.Add(renameItem);
+                    
+                    manageMenu.Items.Add(groupItem);
+                }
+                
+                // 如果没有自定义分组，添加提示
+                if (!hasCustomGroups) {
+                    MenuFlyoutItem noGroupsItem = new MenuFlyoutItem {
+                        Text = "暂无自定义分组",
+                        IsEnabled = false
+                    };
+                    manageMenu.Items.Add(noGroupsItem);
+                }
+                
+                // 显示管理菜单
+                manageMenu.ShowAt(_groupComboBox);
+            };
+            contextMenu.Items.Add(manageGroupsItem);
+            
+            // 为 ComboBox 添加右键菜单
+            _groupComboBox.ContextFlyout = contextMenu;
+
+            _groupComboBox.ItemsSource = ViewModel.Groups;
+            _groupComboBox.SelectedItem = ViewModel.SelectedGroup;
+            _groupComboBox.SelectionChanged += (s, e) =>
+            {
+                if (_groupComboBox.SelectedItem is string g)
+                {
+                    ViewModel.SelectedGroup = g;
+                    UpdateUI();
+                }
+            };
+
+            leftStack.Children.Add(_groupComboBox);
+
+            Grid.SetColumn(leftStack, 0);
+            categoryContentGrid.Children.Add(leftStack);
+
+            // R18 模式选择器
+            var r18ComboBox = new ComboBox
+            {
+                Width = 90,
+                Height = 32,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(8, 0, 0, 0)
+            };
+            
+            // 添加三种模式选项
+            r18ComboBox.Items.Add(new ComboBoxItem { Content = "全部", Tag = ViewModels.MainViewModel.R18FilterMode.All });
+            r18ComboBox.Items.Add(new ComboBoxItem { Content = "隐藏R18", Tag = ViewModels.MainViewModel.R18FilterMode.Hide });
+            r18ComboBox.Items.Add(new ComboBoxItem { Content = "仅R18", Tag = ViewModels.MainViewModel.R18FilterMode.Only });
+            
+            // 设置默认选中项
+            r18ComboBox.SelectedIndex = 0;
+            
+            // 处理选择变化
+            r18ComboBox.SelectionChanged += (s, e) =>
+            {
+                if (r18ComboBox.SelectedItem is ComboBoxItem item && item.Tag is ViewModels.MainViewModel.R18FilterMode mode)
+                {
+                    ViewModel.R18Mode = mode;
+                    UpdateUI();
+                }
+            };
+
+            Grid.SetColumn(r18ComboBox, 1);
+            categoryContentGrid.Children.Add(r18ComboBox);
+
+            // Subscribe to ViewModel changes so we can refresh the group list UI
+            ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+            categoryBar.Children.Add(categoryContentGrid);
+
+            return categoryBar;
+        }
+
+        private FrameworkElement BuildModernSearchBar()
+        {
+            // 外部容器，增加边距
+            Grid container = new Grid { Padding = new Thickness(16, 8, 16, 12) };
+
+            // 使用 TextBox 并进行深度美化
+            _searchBox = new TextBox
+            {
+                PlaceholderText = "Search...",
+                Height = 40,
+                CornerRadius = new CornerRadius(8),
+                VerticalContentAlignment = VerticalAlignment.Center,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                BorderThickness = new Thickness(1),
+                // 使用半透明白色背景（白色毛玻璃感）
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
+                BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(60, 0, 0, 0))
+            };
+
+            // 搜索框左侧图标
+            _searchBox.Header = null; // 确保没有头部标签
+            
+            // 设置文本改变事件
+            _searchBox.TextChanged += SearchBox_TextChanged;
+
+            // 技巧：在 WinUI 3 中通过设置 Placeholder 的交互感来增强视觉
+            // 如果想要更高级的"搜索图标在框内"，可以使用 AutoSuggestBox
+            var searchIcon = new FontIcon
+            {
+                Glyph = "\uE11A",
+                FontSize = 16,
+                Opacity = 0.6,
+                Margin = new Thickness(14, 0, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center,
+                IsHitTestVisible = false
+            };
+
+            // 为了让图标看起来在框内，我们把图标叠在 TextBox 上
+            Grid searchWrapper = new Grid();
+            searchWrapper.Children.Add(_searchBox);
+            searchWrapper.Children.Add(searchIcon);
+
+            // 调整文字缩进，给图标留位，并确保文本垂直居中
+            _searchBox.Padding = new Thickness(40, 8, 12, 8);
+
+            container.Children.Add(searchWrapper);
+            return container;
         }
 
         private async void MainPage_Loaded(object sender, RoutedEventArgs e)
@@ -261,8 +428,8 @@ namespace WallpaperDockWinUI.Views
                 var app = App.Current as App;
                 if (app?.MainWindow != null && _topBar != null)
                 {
-                    // 将我们的顶栏设置为标题栏：系统按钮会被替换，且窗口拖动区域由 _topBar 管理
-                    app.MainWindow.SetTitleBar(_topBar);
+                    // 不设置标题栏，禁用窗口拖动功能
+                    // app.MainWindow.SetTitleBar(_topBar);
                     
                     // 使用半透明背景以配合系统 Mica/Acrylic
                     _topBar.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(180, 20, 20, 20));
@@ -282,10 +449,13 @@ namespace WallpaperDockWinUI.Views
 
         private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
+            // 当 ViewModel 通知 Groups 集合已更改时
             if (e.PropertyName == nameof(MainViewModel.Groups))
             {
                 if (_groupComboBox != null)
                 {
+                    // 重新绑定数据源以强制 UI 刷新下拉列表内容
+                    _groupComboBox.ItemsSource = null; // 先清空，防止某些情况下 UI 不重绘
                     _groupComboBox.ItemsSource = ViewModel.Groups;
                     _groupComboBox.SelectedItem = ViewModel.SelectedGroup;
                 }
