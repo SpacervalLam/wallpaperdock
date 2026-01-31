@@ -10,7 +10,7 @@ obj/
 *.sln.*.user
 
 # 发布配置文件
-Properties/PublishProfiles/
+**/Properties/PublishProfiles/
 
 # 临时文件
 *.tmp
@@ -78,6 +78,10 @@ coverage/
 
 # 发布输出
 publish/
+
+# 安装配置和输出
+Output/
+WallpaperDock.iss
 
 # 本地化文件
 *.xlf
