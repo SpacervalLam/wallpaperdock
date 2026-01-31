@@ -1,0 +1,131 @@
+# 编译输出目录
+bin/
+obj/
+
+# Visual Studio 相关文件
+.vs/
+*.suo
+*.user
+*.sln.docstates
+*.sln.*.user
+
+# 发布配置文件
+Properties/PublishProfiles/
+
+# 临时文件
+*.tmp
+*.temp
+*.log
+
+# 依赖项缓存
+project.assets.json
+project.nuget.cache
+*.nuget.dgspec.json
+*.nuget.g.props
+*.nuget.g.targets
+
+# 编辑器和IDE文件
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 系统文件
+Thumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# 构建工具文件
+MSBuildLogs/
+
+# 测试结果
+TestResults/
+
+# 打包文件
+*.nupkg
+*.zip
+*.7z
+*.rar
+
+# 环境变量文件
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 代码覆盖率文件
+coverage/
+*.lcov
+
+# 性能分析文件
+*.psess
+*.vsp
+*.vspx
+
+# WinUI 3 特定文件
+*.xbf
+*.pri
+*.intermediate
+*.resfiles
+*.g.cs
+*.g.i.cs
+
+# 发布输出
+publish/
+
+# 本地化文件
+*.xlf
+
+# 证书文件
+*.pfx
+*.p12
+
+# 其他临时文件
+*.cache
+*.manifest
+*.local
+
+# 调试符号文件
+*.pdb
+
+# 运行时配置文件
+*.runtimeconfig.json
+*.runtimeconfig.dev.json
+
+# 依赖注入配置文件
+*.deps.json
+
+# 应用程序配置文件
+app.config
+web.config
+
+# 数据库文件
+*.mdf
+*.ldf
+
+# 迁移文件
+Migrations/
+
+# 缓存目录
+Cache/
+cache/
+
+# 备份文件
+*.bak
+*.backup
+
+# 锁定文件
+*.lock
+
+# 版本控制文件
+*.orig.*
+
+# 日志目录
+logs/
+Logs/

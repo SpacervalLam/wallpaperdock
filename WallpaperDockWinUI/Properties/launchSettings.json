@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "WallpaperDockWinUI (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "WallpaperDockWinUI (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

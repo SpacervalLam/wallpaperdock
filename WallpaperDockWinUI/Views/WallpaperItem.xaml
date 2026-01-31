@@ -1,0 +1,76 @@
+<UserControl
+    x:Class="WallpaperDockWinUI.Views.WallpaperItem"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    HorizontalAlignment="Stretch"
+    MinHeight="120">
+
+    <!-- 提高高度与宽度，并保证图像区域占比更大 -->
+
+    <!-- 更现代、更透明 -->
+    <Grid x:Name="RootGrid" CornerRadius="8"
+          Background="Transparent"
+          BorderBrush="#30FFFFFF"
+          BorderThickness="1"
+          Padding="0"
+          RenderTransformOrigin="0.5,0.5">
+
+        <Grid.RowDefinitions>
+            <!-- 使预览图为横向（宽>高）的缩略图：固定高度、占据大部分宽度 -->
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" CornerRadius="8,8,0,0" Margin="0" Background="#20808080" Height="96" HorizontalAlignment="Stretch">
+            <Grid>
+                <ProgressRing x:Name="LoadingIndicator"
+                               IsActive="True"
+                               Width="20" Height="20"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+
+                <Image x:Name="PreviewImage"
+                       Stretch="UniformToFill"
+                       HorizontalAlignment="Stretch"
+                       VerticalAlignment="Stretch"
+                       Width="Auto"
+                       Height="Auto"/>
+
+                <!-- 如果需要裁切为圆角，可用 Clip（可选，留着注释以备将来启用） -->
+                <!-- <Image.Clip>
+                    <RectangleGeometry Rect="0,0,200,100" RadiusX="8" RadiusY="8"/>
+                </Image.Clip> -->
+
+                <!-- 美观的 R18 标记角标：左上角，渐变背景，圆角和稍大内边距 -->
+                <Border x:Name="R18Badge" CornerRadius="0,6,6,0" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8" Padding="8,4" Visibility="Collapsed">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#FFCF2A2A" Offset="0" />
+                            <GradientStop Color="#FF8A0812" Offset="1" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+                    <TextBlock Text="R18" Foreground="White" FontSize="11" FontWeight="Bold" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Padding="8,6,8,8" Background="Transparent">
+            <!-- 移除标题底色矩形，仅保留白色描边文本 -->
+            <Grid x:Name="TitleTextContainer" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Margin="8,0,8,6">
+
+                <TextBlock x:Name="TitleText" Text="Wallpaper Title" FontSize="12" FontWeight="Medium" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" VerticalAlignment="Center" Foreground="White" ToolTipService.ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+            </Grid>
+        </Grid>
+
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="CommonStates">
+                <VisualState x:Name="Normal" />
+                <VisualState x:Name="PointerOver">
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+    </Grid>
+</UserControl>

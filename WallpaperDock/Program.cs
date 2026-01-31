@@ -251,17 +251,7 @@ namespace WallpaperDock
                     Console.WriteLine("libraryfolders.vdf not found");
                 }
                 
-                // Always add F:\SteamLibrary as fallback since we know it exists
-                string fallbackPath = "F:\\SteamLibrary";
-                if (Directory.Exists(fallbackPath) && !libraryPaths.Contains(fallbackPath))
-                {
-                    libraryPaths.Add(fallbackPath);
-                    Console.WriteLine($"Added fallback library path: {fallbackPath}");
-                }
-                else if (libraryPaths.Contains(fallbackPath))
-                {
-                    Console.WriteLine($"Fallback path already in list: {fallbackPath}");
-                }
+
             }
 
             return libraryPaths;
