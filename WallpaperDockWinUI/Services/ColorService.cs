@@ -59,20 +59,73 @@ namespace WallpaperDockWinUI.Services
 
         public void UpdateAccentColor(Color color)
         {
-            // Update the system accent color resource
-            // Note: This is a simplified approach. In a real-world scenario,
-            // you might want to update multiple resources or use a more sophisticated theming system.
             try
             {
+                // Update primary color resource (keeps theme palettes consistent)
+                if (App.Current.Resources.ContainsKey("PrimaryColor"))
+                    App.Current.Resources["PrimaryColor"] = color;
+                else
+                    App.Current.Resources.Add("PrimaryColor", color);
+
+                // Update primary brush instance so UI updates immediately
+                var primaryBrush = new SolidColorBrush(color);
+                if (App.Current.Resources.ContainsKey("PrimaryBrush"))
+                    App.Current.Resources["PrimaryBrush"] = primaryBrush;
+                else
+                    App.Current.Resources.Add("PrimaryBrush", primaryBrush);
+
+                // Keep SystemAccentColor for compatibility with other code
                 if (App.Current.Resources.ContainsKey("SystemAccentColor"))
-                {
                     App.Current.Resources["SystemAccentColor"] = color;
+                else
+                    App.Current.Resources.Add("SystemAccentColor", color);
+
+                // Choose an accessible foreground color (white or black) for text/icons on the accent background
+                var white = Color.FromArgb(255, 255, 255, 255);
+                var black = Color.FromArgb(255, 0, 0, 0);
+                double contrastWhite = ContrastRatio(color, white);
+                double contrastBlack = ContrastRatio(color, black);
+
+                Color chosen = contrastWhite >= contrastBlack ? white : black;
+
+                if (Math.Max(contrastWhite, contrastBlack) < 4.5)
+                {
+                    // If neither white nor black meets WCAG 4.5:1, log a warning.
+                    Console.WriteLine($"Warning: accent color contrast ({Math.Max(contrastWhite, contrastBlack):F2}) < 4.5 with both white and black.");
                 }
+
+                if (App.Current.Resources.ContainsKey("PrimaryActionForegroundBrush"))
+                    App.Current.Resources["PrimaryActionForegroundBrush"] = new SolidColorBrush(chosen);
+                else
+                    App.Current.Resources.Add("PrimaryActionForegroundBrush", new SolidColorBrush(chosen));
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error updating accent color: {ex.Message}");
             }
+        }
+
+        private double RelativeLuminance(Color c)
+        {
+            // Convert sRGB to linear values (0..1)
+            double Rs = c.R / 255.0;
+            double Gs = c.G / 255.0;
+            double Bs = c.B / 255.0;
+
+            double R = Rs <= 0.03928 ? Rs / 12.92 : Math.Pow((Rs + 0.055) / 1.055, 2.4);
+            double G = Gs <= 0.03928 ? Gs / 12.92 : Math.Pow((Gs + 0.055) / 1.055, 2.4);
+            double B = Bs <= 0.03928 ? Bs / 12.92 : Math.Pow((Bs + 0.055) / 1.055, 2.4);
+
+            return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+        }
+
+        private double ContrastRatio(Color a, Color b)
+        {
+            double la = RelativeLuminance(a);
+            double lb = RelativeLuminance(b);
+            double lighter = Math.Max(la, lb);
+            double darker = Math.Min(la, lb);
+            return (lighter + 0.05) / (darker + 0.05);
         }
     }
 }

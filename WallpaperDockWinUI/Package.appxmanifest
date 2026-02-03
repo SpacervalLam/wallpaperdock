@@ -47,5 +47,7 @@
 
   <Capabilities>
     <rescap:Capability Name="runFullTrust" />
+    <!-- Microphone access for speech recognition -->
+    <DeviceCapability Name="microphone" />
   </Capabilities>
 </Package>

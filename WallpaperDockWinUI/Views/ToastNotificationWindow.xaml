@@ -1,0 +1,65 @@
+<Window
+    x:Class="WallpaperDockWinUI.Views.ToastNotificationWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:WallpaperDockWinUI.Views">
+    <Grid Background="Transparent">
+        <Grid x:Name="RootCard" 
+              MaxWidth="768"
+              MinWidth="576"
+              VerticalAlignment="Top"
+              Background="{ThemeResource LayerFillColorDefaultBrush}" 
+              BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
+              BorderThickness="1"
+              CornerRadius="8"
+              Padding="0"
+              Opacity="0">
+            <Grid.Shadow>
+                <ThemeShadow />
+            </Grid.Shadow>
+            <Grid.RenderTransform>
+                <TranslateTransform x:Name="EntranceTransform" Y="20" />
+            </Grid.RenderTransform>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Border Width="4" HorizontalAlignment="Left" CornerRadius="4,0,0,4"
+                    Background="{ThemeResource SystemAccentColor}" />
+            <FontIcon Glyph="&#xE783;" FontFamily="Segoe MDL2 Assets" 
+                      FontSize="18" Margin="16,16,0,0" VerticalAlignment="Top" 
+                      Foreground="{ThemeResource SystemAccentColor}"
+                      Grid.Column="0"/>
+            <StackPanel Grid.Column="1" Padding="12,14,16,16" Spacing="4">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="TitleText" Text="标题" 
+                               Style="{StaticResource BodyStrongTextBlockStyle}" 
+                               FontSize="14" VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Click="CloseButton_Click" 
+                            Background="Transparent" BorderThickness="0" 
+                            Padding="4" Margin="0,-4,-8,0" MinHeight="24" MinWidth="24">
+                        <FontIcon Glyph="&#xE711;" FontSize="12"/>
+                    </Button>
+                </Grid>
+                <TextBlock x:Name="MessageText" 
+                           Text="这是一条很长的消息内容..." 
+                           Style="{StaticResource BodyTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           TextWrapping="Wrap" 
+                           TextTrimming="None" 
+                           FontSize="13"
+                           LineHeight="20"/>
+                <StackPanel x:Name="ActionPanel" Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
+                    <HyperlinkButton Content="语音设置" Click="SpeechPrivacyLink_Click" 
+                                     Padding="0" FontSize="12" Height="24"/>
+                    <HyperlinkButton Content="麦克风设置" Click="MicrophonePrivacyLink_Click" 
+                                     Padding="0" FontSize="12" Height="24"/>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

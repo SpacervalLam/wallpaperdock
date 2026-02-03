@@ -14,12 +14,85 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <!-- Other merged dictionaries here -->
             </ResourceDictionary.MergedDictionaries>
-            <!-- Other app resources here -->
-            <Color x:Key="Primary">#512BD4</Color>
 
-            <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource Primary}" />
-            <SolidColorBrush x:Key="WhiteBrush" Color="White" />
-            <SolidColorBrush x:Key="BlackBrush" Color="Black" />
+            <!-- Application theme color palettes (Light / Dark) -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <Color x:Key="BackgroundColor">#FFFFFFFF</Color>
+                    <Color x:Key="SurfaceColor">#FFF3F4F6</Color>
+                    <Color x:Key="PrimaryColor">#4F46E5</Color>
+                    <Color x:Key="TextPrimaryColor">#0F172A</Color>
+                    <Color x:Key="TextSecondaryColor">#475569</Color>
+                    <Color x:Key="WallpaperTitleColor">#0F172A</Color>
+                    <Color x:Key="BadgeTextColor">#FFFFFFFF</Color>
+                    <Color x:Key="ErrorColor">#F87171</Color>
+                    <Color x:Key="BorderColor">#1F374151</Color>
+
+                    <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
+                    <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}" />
+                    <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
+                    <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}" />
+                    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
+                    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
+                    <SolidColorBrush x:Key="WallpaperTitleBrush" Color="{StaticResource WallpaperTitleColor}" />
+                    <SolidColorBrush x:Key="TitleShadowBrush" Color="#66000000" />
+                    <SolidColorBrush x:Key="BadgeTextBrush" Color="{StaticResource BadgeTextColor}" />
+                    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+                    <SolidColorBrush x:Key="PrimaryActionForegroundBrush" Color="#FFFFFFFF" />
+                </ResourceDictionary>
+
+                <ResourceDictionary x:Key="Dark">
+                    <Color x:Key="BackgroundColor">#FF0B0B0B</Color>
+                    <Color x:Key="SurfaceColor">#FF121212</Color>
+                    <Color x:Key="PrimaryColor">#7C3AED</Color>
+                    <Color x:Key="TextPrimaryColor">#FFFFFFFF</Color>
+                    <Color x:Key="TextSecondaryColor">#D1D5DB</Color>
+                    <Color x:Key="WallpaperTitleColor">#FFFFFFFF</Color>
+                    <Color x:Key="BadgeTextColor">#FFFFFFFF</Color>
+                    <Color x:Key="ErrorColor">#F87171</Color>
+                    <Color x:Key="BorderColor">#30FFFFFF</Color>
+
+                    <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
+                    <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}" />
+                    <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
+                    <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}" />
+                    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
+                    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
+                    <SolidColorBrush x:Key="WallpaperTitleBrush" Color="{StaticResource WallpaperTitleColor}" />
+                    <SolidColorBrush x:Key="TitleShadowBrush" Color="#66000000" />
+                    <SolidColorBrush x:Key="BadgeTextBrush" Color="{StaticResource BadgeTextColor}" />
+                    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+                    <SolidColorBrush x:Key="PrimaryActionForegroundBrush" Color="#FFFFFFFF" />
+                </ResourceDictionary>
+
+                <ResourceDictionary x:Key="Default">
+                    <!-- Default to Light -->
+                    <Color x:Key="BackgroundColor">#FFFFFFFF</Color>
+                    <Color x:Key="SurfaceColor">#FFF3F4F6</Color>
+                    <Color x:Key="PrimaryColor">#4F46E5</Color>
+                    <Color x:Key="TextPrimaryColor">#0F172A</Color>
+                    <Color x:Key="TextSecondaryColor">#475569</Color>
+                    <Color x:Key="WallpaperTitleColor">#0F172A</Color>
+                    <Color x:Key="BadgeTextColor">#FFFFFFFF</Color>
+                    <Color x:Key="ErrorColor">#F87171</Color>
+                    <Color x:Key="BorderColor">#1F374151</Color>
+
+                    <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
+                    <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}" />
+                    <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
+                    <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}" />
+                    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
+                    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
+                    <SolidColorBrush x:Key="WallpaperTitleBrush" Color="{StaticResource WallpaperTitleColor}" />
+                    <SolidColorBrush x:Key="TitleShadowBrush" Color="#66000000" />
+                    <SolidColorBrush x:Key="BadgeTextBrush" Color="{StaticResource BadgeTextColor}" />
+                    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+                    <SolidColorBrush x:Key="PrimaryActionForegroundBrush" Color="#FFFFFFFF" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+
+            <!-- Fallback brushes for resources that may be referenced during XAML parsing. These ensure dialogs don't crash if theme resources aren't available yet. -->
+            <SolidColorBrush x:Key="ErrorBrush" Color="#F87171" />
 
             <x:Double x:Key="AppFontSize">14</x:Double>
 
@@ -30,7 +103,7 @@
 
             <Style x:Key="MyLabel" TargetType="TextBlock">
                 <Setter Property="Foreground"
-                        Value="{StaticResource PrimaryBrush}" />
+                        Value="{ThemeResource TextPrimaryBrush}" />
             </Style>
 
             <Style x:Key="Action" TargetType="Button">
@@ -44,11 +117,11 @@
                    TargetType="Button"
                    BasedOn="{StaticResource Action}">
                 <Setter Property="Background"
-                        Value="{StaticResource PrimaryBrush}" />
+                        Value="{ThemeResource PrimaryBrush}" />
                 <Setter Property="CornerRadius"
                         Value="8" />
                 <Setter Property="Foreground"
-                        Value="{StaticResource WhiteBrush}" />
+                        Value="{ThemeResource PrimaryActionForegroundBrush}" />
             </Style>
         </ResourceDictionary>
     </Application.Resources>

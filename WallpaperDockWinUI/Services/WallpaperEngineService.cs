@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Diagnostics;
+using System.Linq;
+using System.Runtime.InteropServices;
 
 namespace WallpaperDockWinUI.Services
 {
@@ -46,8 +48,9 @@ namespace WallpaperDockWinUI.Services
     public interface IWallpaperService
     {
         List<WallpaperInfo> ScanWallpapers(string workshopPath);
-        void SwitchWallpaper(string projectJsonPath, int monitorIndex = -1);
+        void SwitchWallpaper(string projectJsonPath, int monitorIndex = -1, bool silent = false);
         string? GetWallpaperEnginePath();
+        void OpenWallpaperEngineMainWindow();
     }
 
     public class WallpaperEngineService : IWallpaperService
@@ -155,7 +158,7 @@ namespace WallpaperDockWinUI.Services
             return wallpapers;
         }
 
-        public void SwitchWallpaper(string projectJsonPath, int monitorIndex = -1)
+        public void SwitchWallpaper(string projectJsonPath, int monitorIndex = -1, bool silent = false)
         {
             try
             {
@@ -169,6 +172,13 @@ namespace WallpaperDockWinUI.Services
 
                 // Build command arguments
                 string arguments = $"-control openWallpaper -file \"{projectJsonPath}\"";
+                
+                // If need silent, add properties parameter
+                if (silent)
+                {
+                    arguments += " -properties \"{\\\"volume\\\":0}\"";
+                }
+                
                 if (monitorIndex >= 0)
                 {
                     arguments += $" -monitor {monitorIndex}";
@@ -202,6 +212,192 @@ namespace WallpaperDockWinUI.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"Error switching wallpaper: {ex.Message}");
+            }
+        }
+
+        public void OpenWallpaperEngineMainWindow()
+        {
+            try
+            {
+                string? wallpaperEnginePath = GetWallpaperEnginePath();
+                if (string.IsNullOrEmpty(wallpaperEnginePath) || !File.Exists(wallpaperEnginePath))
+                {
+                    Console.WriteLine("错误：未找到 Wallpaper Engine 可执行文件，请在设置中手动指定路径或安装 Wallpaper Engine。");
+                    return;
+                }
+
+                Console.WriteLine($"找到 Wallpaper Engine 路径: {wallpaperEnginePath}");
+
+                // 1) 如果已经运行 -> 尝试唤回主窗口（更可靠）
+                var runningProcess = GetRunningWallpaperProcess();
+                if (runningProcess != null)
+                {
+                    Console.WriteLine($"Wallpaper Engine 已在运行，进程 ID: {runningProcess.Id}");
+                    IntPtr hWnd = runningProcess.MainWindowHandle;
+                    if (hWnd == IntPtr.Zero)
+                    {
+                        // 有时 MainWindowHandle 可能为 0（尚未创建或隐藏），尝试枚举或直接尝试启动无参数以让主程序处理
+                        Console.WriteLine("MainWindowHandle 为 0，尝试启动无参数以唤回窗口");
+                        TryStartProcessNormally(wallpaperEnginePath);
+                        return;
+                    }
+
+                    // 如果最小化则还原
+                    if (IsIconic(hWnd))
+                    {
+                        ShowWindow(hWnd, SW_RESTORE);
+                        Console.WriteLine("Wallpaper Engine 窗口已从最小化状态还原");
+                    }
+
+                    // 试图安全地把窗口置前
+                    BringWindowToFront(hWnd);
+                    Console.WriteLine("已唤回 Wallpaper Engine 主窗口（进程已在运行）。");
+                    return;
+                }
+
+                // 2) 未运行 -> 正常启动 exe
+                Console.WriteLine("Wallpaper Engine 未运行，尝试启动可执行程序");
+                TryStartProcessNormally(wallpaperEnginePath);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"启动 Wallpaper Engine 失败: {ex.Message}");
+            }
+        }
+
+        // ----------------- P/Invoke 用于将窗口带到前台 -----------------
+        private const int SW_RESTORE = 9;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsIconic(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+        [DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+
+        // -----------------------------------------------------------------
+
+        private bool IsWallpaperEngineRunning()
+        {
+            try
+            {
+                // Check for both 32-bit and 64-bit versions
+                Process[] processes32 = Process.GetProcessesByName("wallpaper32");
+                Process[] processes64 = Process.GetProcessesByName("wallpaper64");
+                
+                return processes32.Length > 0 || processes64.Length > 0;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error checking if Wallpaper Engine is running: {ex.Message}");
+                return false;
+            }
+        }
+
+        private Process? GetRunningWallpaperProcess()
+        {
+            try
+            {
+                var procs = Process.GetProcesses();
+                // 优先查找 wallpaper64 / wallpaper32
+                var p = procs.FirstOrDefault(p => string.Equals(p.ProcessName, "wallpaper64", StringComparison.OrdinalIgnoreCase)
+                                              || string.Equals(p.ProcessName, "wallpaper32", StringComparison.OrdinalIgnoreCase));
+                return p;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"检查 Wallpaper Engine 是否正在运行时发生错误: {ex.Message}");
+                return null;
+            }
+        }
+
+        private void TryStartProcessNormally(string wallpaperEnginePath)
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = wallpaperEnginePath,
+                    Arguments = "", // 不传参数以确保主程序正常启动并显示主窗口
+                    UseShellExecute = true, // 启动 GUI 应用时建议 true
+                    CreateNoWindow = false,
+                    WorkingDirectory = Path.GetDirectoryName(wallpaperEnginePath) ?? Environment.CurrentDirectory
+                };
+
+                Process? proc = Process.Start(startInfo);
+                if (proc != null)
+                {
+                    Console.WriteLine("成功启动 Wallpaper Engine 可执行程序。");
+                    // 不等待退出，不做 WaitForExit
+                }
+                else
+                {
+                    Console.WriteLine("启动 Wallpaper Engine 失败：Process.Start 返回 null。");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"启动 Wallpaper Engine 时发生异常: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 尝试把窗口带到前台（安全方式，考虑线程输入 attach）
+        /// </summary>
+        private void BringWindowToFront(IntPtr hWnd)
+        {
+            try
+            {
+                IntPtr fg = GetForegroundWindow();
+                if (fg == hWnd)
+                    return;
+
+                // 获取线程 id
+                uint fgThread = GetWindowThreadProcessId(fg, out _);
+                uint targetThread = GetWindowThreadProcessId(hWnd, out _);
+
+                uint currentThread = GetCurrentThreadId();
+
+                // attach 动作使 SetForegroundWindow 更有可能成功
+                bool attached = false;
+                try
+                {
+                    if (AttachThreadInput(currentThread, fgThread, true))
+                    {
+                        attached = true;
+                    }
+                    // 还原/显示窗口
+                    if (IsIconic(hWnd))
+                    {
+                        ShowWindow(hWnd, SW_RESTORE);
+                    }
+                    SetForegroundWindow(hWnd);
+                }
+                finally
+                {
+                    if (attached)
+                    {
+                        AttachThreadInput(currentThread, fgThread, false);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"尝试将窗口置前失败: {ex.Message}");
             }
         }
     }

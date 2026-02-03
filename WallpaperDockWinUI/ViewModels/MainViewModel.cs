@@ -186,7 +186,42 @@ namespace WallpaperDockWinUI.ViewModels
                     wallpaper.Groups = _favoritesService.GetGroups(wallpaper.ProjectJsonPath!);
                 }
 
-                _wallpapers = allWallpapers;
+                // Deduplicate wallpapers by ProjectJsonPath, prefer entries that have a PreviewPath set
+                var deduped = allWallpapers
+                    .Where(w => !string.IsNullOrEmpty(w.ProjectJsonPath))
+                    .GroupBy(w => System.IO.Path.GetFullPath(w.ProjectJsonPath!).TrimEnd(System.IO.Path.DirectorySeparatorChar).ToLowerInvariant())
+                    .Select(g =>
+                    {
+                        // Choose the best candidate from the group using multiple heuristics:
+                        // 1) has PreviewPath (preferred)
+                        // 2) has ThemeColor
+                        // 3) longer Title
+                        var best = g
+                            .OrderByDescending(w => !string.IsNullOrEmpty(w.PreviewPath) ? 1 : 0)
+                            .ThenByDescending(w => !string.IsNullOrEmpty(w.ThemeColor) ? 1 : 0)
+                            .ThenByDescending(w => (w.Title?.Length ?? 0))
+                            .First();
+
+                        if (g.Count() > 1)
+                        {
+                            var fullPath = System.IO.Path.GetFullPath(best.ProjectJsonPath!);
+                            Console.WriteLine($"ScanWallpapers: merged {g.Count()} entries for {fullPath}; chosen hasPreview={( !string.IsNullOrEmpty(best.PreviewPath) ? "yes" : "no" )}");
+                        }
+
+                        return best;
+                    })
+                    .ToList();
+
+                // Log if duplicates were removed to help diagnose machines with duplicate entries
+                if (deduped.Count < allWallpapers.Count)
+                {
+                    Console.WriteLine($"ScanWallpapers: removed {allWallpapers.Count - deduped.Count} duplicate wallpaper entries.");
+                }
+
+                // Include any wallpapers that somehow lack a ProjectJsonPath (preserve original order)
+                deduped.AddRange(allWallpapers.Where(w => string.IsNullOrEmpty(w.ProjectJsonPath)));
+
+                _wallpapers = deduped;
                 FilterWallpapers();
             }
             catch (Exception ex)
@@ -222,6 +257,20 @@ namespace WallpaperDockWinUI.ViewModels
             All,        // 显示全部（包括R18）
             Hide,       // 不显示R18
             Only        // 只显示R18
+        }
+
+        // 播放列表相关
+        private List<string> _playlists = new List<string>();
+        private Dictionary<string, List<WallpaperInfo>> _playlistContents = new Dictionary<string, List<WallpaperInfo>>();
+        private Microsoft.UI.Xaml.DispatcherTimer? _playlistTimer;
+        private string? _currentPlayingPlaylist;
+        private int _currentPlaylistIndex = 0;
+        private string _playOrder = "Sequential";
+
+        public List<string> Playlists
+        {
+            get => _playlists;
+            set => SetProperty(ref _playlists, value);
         }
 
         public List<string> Groups
@@ -279,6 +328,11 @@ namespace WallpaperDockWinUI.ViewModels
         public void RefreshFilters()
         {
             FilterWallpapers();
+        }
+
+        public async Task RefreshWallpapers()
+        {
+            await LoadWallpapersAsync();
         }
 
         public void DeleteGroup(string groupName)
@@ -461,6 +515,161 @@ namespace WallpaperDockWinUI.ViewModels
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        // 播放列表相关方法
+        public void AddPlaylist(string playlistName)
+        {
+            if (!string.IsNullOrWhiteSpace(playlistName) && !_playlists.Contains(playlistName))
+            {
+                _playlists.Add(playlistName);
+                _playlistContents[playlistName] = new List<WallpaperInfo>();
+                OnPropertyChanged(nameof(Playlists));
+            }
+        }
+
+        public List<WallpaperInfo> GetPlaylistContent(string playlistName)
+        {
+            if (_playlistContents.TryGetValue(playlistName, out var content))
+            {
+                return content;
+            }
+            return new List<WallpaperInfo>();
+        }
+
+        public void AddWallpaperToPlaylist(WallpaperInfo wallpaper, string playlistName)
+        {
+            if (wallpaper != null && !string.IsNullOrWhiteSpace(playlistName))
+            {
+                if (!_playlistContents.ContainsKey(playlistName))
+                {
+                    _playlistContents[playlistName] = new List<WallpaperInfo>();
+                }
+                
+                if (!_playlistContents[playlistName].Contains(wallpaper))
+                {
+                    _playlistContents[playlistName].Add(wallpaper);
+                }
+            }
+        }
+
+        public void RemoveWallpaperFromPlaylist(WallpaperInfo wallpaper, string playlistName)
+        {
+            if (wallpaper != null && !string.IsNullOrWhiteSpace(playlistName) && _playlistContents.ContainsKey(playlistName))
+            {
+                _playlistContents[playlistName].Remove(wallpaper);
+            }
+        }
+
+        public void SavePlaylistContent(string playlistName, List<WallpaperInfo> content)
+        {
+            if (!string.IsNullOrWhiteSpace(playlistName))
+            {
+                _playlistContents[playlistName] = content;
+            }
+        }
+
+        public void StartPlaylistPlayback(string playlistName, int interval, string playOrder)
+        {
+            // 停止当前播放
+            StopPlaylistPlayback();
+
+            // 设置当前播放列表
+            _currentPlayingPlaylist = playlistName;
+            _playOrder = playOrder;
+            _currentPlaylistIndex = 0;
+
+            // 创建定时器
+            _playlistTimer = new Microsoft.UI.Xaml.DispatcherTimer();
+            _playlistTimer.Interval = TimeSpan.FromSeconds(interval);
+            _playlistTimer.Tick += PlaylistTimer_Tick;
+
+            // 立即播放第一个壁纸
+            PlayNextWallpaper();
+
+            // 启动定时器
+            _playlistTimer.Start();
+        }
+
+        public void StopPlaylistPlayback()
+        {
+            if (_playlistTimer != null)
+            {
+                _playlistTimer.Stop();
+                _playlistTimer.Tick -= PlaylistTimer_Tick;
+                _playlistTimer = null;
+            }
+            _currentPlayingPlaylist = null;
+        }
+
+        private void PlaylistTimer_Tick(object sender, object e)
+        {
+            PlayNextWallpaper();
+        }
+
+        private void PlayNextWallpaper()
+        {
+            if (string.IsNullOrEmpty(_currentPlayingPlaylist) || !_playlistContents.ContainsKey(_currentPlayingPlaylist))
+            {
+                StopPlaylistPlayback();
+                return;
+            }
+
+            var playlist = _playlistContents[_currentPlayingPlaylist];
+            if (playlist.Count == 0)
+            {
+                StopPlaylistPlayback();
+                return;
+            }
+
+            // 确定下一个要播放的壁纸索引
+            int nextIndex;
+            if (_playOrder == "Random")
+            {
+                // 随机播放
+                Random random = new Random();
+                nextIndex = random.Next(0, playlist.Count);
+            }
+            else
+            {
+                // 顺序播放
+                nextIndex = _currentPlaylistIndex;
+                _currentPlaylistIndex = (_currentPlaylistIndex + 1) % playlist.Count;
+            }
+
+            // 播放壁纸
+            var wallpaper = playlist[nextIndex];
+            if (wallpaper != null && !string.IsNullOrEmpty(wallpaper.ProjectJsonPath))
+            {
+                _wallpaperService.SwitchWallpaper(wallpaper.ProjectJsonPath);
+            }
+        }
+
+        // 批量操作相关方法
+        public void AddWallpaperToGroup(WallpaperInfo wallpaper, string groupName)
+        {
+            if (wallpaper != null && !string.IsNullOrWhiteSpace(groupName) && !string.IsNullOrEmpty(wallpaper.ProjectJsonPath))
+            {
+                if (wallpaper.Groups == null)
+                {
+                    wallpaper.Groups = new List<string>();
+                }
+                
+                if (!wallpaper.Groups.Contains(groupName))
+                {
+                    wallpaper.Groups.Add(groupName);
+                    _favoritesService.AddGroupToWallpaper(wallpaper.ProjectJsonPath, groupName);
+                }
+            }
+        }
+
+        public void RemoveWallpaper(WallpaperInfo wallpaper)
+        {
+            if (wallpaper != null && _wallpapers.Contains(wallpaper))
+            {
+                _wallpapers.Remove(wallpaper);
+                FilterWallpapers();
+            }
         }
     }
 }

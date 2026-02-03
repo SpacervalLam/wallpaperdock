@@ -13,10 +13,12 @@
     <!-- 更现代、更透明 -->
     <Grid x:Name="RootGrid" CornerRadius="8"
           Background="Transparent"
-          BorderBrush="#30FFFFFF"
+          BorderBrush="{ThemeResource BorderBrush}"
           BorderThickness="1"
           Padding="0"
           RenderTransformOrigin="0.5,0.5">
+        
+
 
         <Grid.RowDefinitions>
             <!-- 使预览图为横向（宽>高）的缩略图：固定高度、占据大部分宽度 -->
@@ -24,7 +26,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" CornerRadius="8,8,0,0" Margin="0" Background="#20808080" Height="96" HorizontalAlignment="Stretch">
+        <Border Grid.Row="0" CornerRadius="8,8,0,0" Margin="0" Background="{ThemeResource SurfaceBrush}" Height="96" HorizontalAlignment="Stretch">
             <Grid>
                 <ProgressRing x:Name="LoadingIndicator"
                                IsActive="True"
@@ -52,7 +54,7 @@
                             <GradientStop Color="#FF8A0812" Offset="1" />
                         </LinearGradientBrush>
                     </Border.Background>
-                    <TextBlock Text="R18" Foreground="White" FontSize="11" FontWeight="Bold" />
+                    <TextBlock Text="R18" Foreground="{ThemeResource BadgeTextBrush}" FontSize="11" FontWeight="Bold" />
                 </Border>
             </Grid>
         </Border>
@@ -60,8 +62,9 @@
         <Grid Grid.Row="1" Padding="8,6,8,8" Background="Transparent">
             <!-- 移除标题底色矩形，仅保留白色描边文本 -->
             <Grid x:Name="TitleTextContainer" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Margin="8,0,8,6">
-
-                <TextBlock x:Name="TitleText" Text="Wallpaper Title" FontSize="12" FontWeight="Medium" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" VerticalAlignment="Center" Foreground="White" ToolTipService.ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+                <!-- Shadow copy behind main title to improve readability on varied thumbnails -->
+                <TextBlock x:Name="TitleTextShadow" Text="{Binding Text, ElementName=TitleText}" FontSize="12" FontWeight="Medium" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" VerticalAlignment="Center" Foreground="{ThemeResource TitleShadowBrush}" Margin="0,1,0,0" Opacity="0.9" IsHitTestVisible="False" />
+                <TextBlock x:Name="TitleText" Text="Wallpaper Title" FontSize="12" FontWeight="Medium" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" VerticalAlignment="Center" Foreground="{ThemeResource WallpaperTitleBrush}" ToolTipService.ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
             </Grid>
         </Grid>
 

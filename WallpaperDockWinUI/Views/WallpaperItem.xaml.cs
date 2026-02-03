@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using System;
 using System.Threading.Tasks;
@@ -10,9 +11,29 @@ namespace WallpaperDockWinUI.Views
 {
     public sealed partial class WallpaperItem : UserControl
     {
-        public static readonly DependencyProperty WallpaperProperty =
-            DependencyProperty.Register(nameof(Wallpaper), typeof(WallpaperInfo), typeof(WallpaperItem),
+        public static readonly DependencyProperty WallpaperProperty = 
+            DependencyProperty.Register(nameof(Wallpaper), typeof(WallpaperInfo), typeof(WallpaperItem), 
                 new PropertyMetadata(null, OnWallpaperChanged));
+
+        public static readonly DependencyProperty IsBatchModeProperty = 
+            DependencyProperty.Register(nameof(IsBatchMode), typeof(bool), typeof(WallpaperItem), 
+                new PropertyMetadata(false));
+
+        public static readonly DependencyProperty IsSelectedProperty = 
+            DependencyProperty.Register(nameof(IsSelected), typeof(bool), typeof(WallpaperItem), 
+                new PropertyMetadata(false, OnIsSelectedChanged));
+
+        public bool IsSelected
+        {
+            get => (bool)GetValue(IsSelectedProperty);
+            set => SetValue(IsSelectedProperty, value);
+        }
+
+        public bool IsBatchMode
+        {
+            get => (bool)GetValue(IsBatchModeProperty);
+            set => SetValue(IsBatchModeProperty, value);
+        }
 
         private IImageCacheService? _imageCacheService;
 
@@ -50,6 +71,17 @@ namespace WallpaperDockWinUI.Views
             var fav = App.Current.Services.GetService(typeof(IFavoritesService)) as IFavoritesService;
 
             var menu = new MenuFlyout();
+
+            var silentPlayItem = new MenuFlyoutItem { Text = "静音播放" };
+            silentPlayItem.Click += (s, ev) =>
+            {
+                if (Wallpaper != null && !string.IsNullOrEmpty(Wallpaper.ProjectJsonPath))
+                {
+                    var service = App.Current.Services.GetService(typeof(IWallpaperService)) as IWallpaperService;
+                    service?.SwitchWallpaper(Wallpaper.ProjectJsonPath, -1, true);
+                }
+            };
+            menu.Items.Add(silentPlayItem);
 
             var r18Item = new Microsoft.UI.Xaml.Controls.ToggleMenuFlyoutItem { Text = "标记为R18", IsChecked = Wallpaper.IsR18 };
             r18Item.Click += (s, ev) =>
@@ -124,6 +156,12 @@ namespace WallpaperDockWinUI.Views
             groupSub.Items.Add(newGroupItem);
             menu.Items.Add(groupSub);
 
+            // 添加删除壁纸按钮
+            menu.Items.Add(new MenuFlyoutSeparator());
+            var deleteItem = new MenuFlyoutItem { Text = "删除壁纸" };
+            deleteItem.Click += async (s, ev) => await DeleteWallpaperAsync();
+            menu.Items.Add(deleteItem);
+
             menu.ShowAt(this, e.GetPosition(this));
         }
 
@@ -166,62 +204,94 @@ namespace WallpaperDockWinUI.Views
 
         private async System.Threading.Tasks.Task ShowNewGroupDialogAsync(IFavoritesService? fav)
         {
-            var dlg = new InputDialog { TitleText = "新增分组", Input = string.Empty };
-            dlg.RequireNonEmpty = true;
-            var existingGroups = fav?.GetAllGroups() ?? new System.Collections.Generic.List<string>();
-            var normalizedSet = new System.Collections.Generic.HashSet<string>(System.StringComparer.InvariantCultureIgnoreCase);
-            foreach (var g in existingGroups)
-            {
-                var n = NormalizeGroupName(g);
-                if (!string.IsNullOrWhiteSpace(n))
-                    normalizedSet.Add(n);
-            }
-
-            dlg.Validator = (text) =>
-            {
-                var n = NormalizeGroupName(text);
-                if (string.IsNullOrWhiteSpace(n))
-                    return "名称不能为空";
-                if (normalizedSet.Contains(n))
-                    return "分组已存在";
-                return null;
-            };
-
-            bool ok = false;
             try
             {
-                ok = await dlg.ShowCenteredAsync();
+                var dlg = new InputDialog { TitleText = "新增分组", Input = string.Empty };
+                dlg.RequireNonEmpty = true;
+                var existingGroups = fav?.GetAllGroups() ?? new System.Collections.Generic.List<string>();
+                var normalizedSet = new System.Collections.Generic.HashSet<string>(System.StringComparer.InvariantCultureIgnoreCase);
+                foreach (var g in existingGroups)
+                {
+                    var n = NormalizeGroupName(g);
+                    if (!string.IsNullOrWhiteSpace(n))
+                        normalizedSet.Add(n);
+                }
+
+                dlg.Validator = (text) =>
+                {
+                    var n = NormalizeGroupName(text);
+                    if (string.IsNullOrWhiteSpace(n))
+                        return "名称不能为空";
+                    if (normalizedSet.Contains(n))
+                        return "分组已存在";
+                    return null;
+                };
+
+                bool ok = false;
+                try
+                {
+                    ok = await dlg.ShowCenteredAsync();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"ShowNewGroupDialogAsync failed during dialog show: {ex}");
+                    System.IO.File.AppendAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "CrashLog_NewGroup_ShowDialog.txt"), ex.ToString() + Environment.NewLine);
+                    return;
+                }
+
+                if (ok && Wallpaper != null && !string.IsNullOrEmpty(Wallpaper.ProjectJsonPath))
+                {
+                    var groupRaw = dlg.Input;
+                    var group = NormalizeGroupName(groupRaw);
+                    if (!string.IsNullOrWhiteSpace(group))
+                    {
+                        // 获取MainViewModel实例
+                        var vm = App.Current.Services.GetService(typeof(ViewModels.MainViewModel)) as ViewModels.MainViewModel;
+                        if (vm == null)
+                        {
+                            System.Diagnostics.Debug.WriteLine("MainViewModel not available when adding group");
+                            System.IO.File.AppendAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "CrashLog_NewGroup.txt"), "MainViewModel is null\n");
+                        }
+                        else
+                        {
+                            // 通过MainViewModel添加分组，确保分组列表自动刷新
+                            try
+                            {
+                                vm.AddGroup(group);
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"AddGroup failed: {ex}");
+                                System.IO.File.AppendAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "CrashLog_NewGroup_AddGroup.txt"), ex.ToString() + Environment.NewLine);
+                            }
+                        }
+
+                        // 添加分组到壁纸
+                        var wallpaperGroups = Wallpaper.Groups ?? new System.Collections.Generic.List<string>();
+                        if (!wallpaperGroups.Contains(group))
+                        {
+                            wallpaperGroups.Add(group);
+                            Wallpaper.Groups = wallpaperGroups;
+                            try
+                            {
+                                fav?.AddGroupToWallpaper(Wallpaper.ProjectJsonPath, group);
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"AddGroupToWallpaper failed: {ex}");
+                                System.IO.File.AppendAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "CrashLog_NewGroup_AddGroupToWallpaper.txt"), ex.ToString() + Environment.NewLine);
+                            }
+                        }
+
+                        // 刷新过滤
+                        try { vm?.RefreshFilters(); } catch (Exception ex) { System.IO.File.AppendAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "CrashLog_NewGroup_RefreshFilters.txt"), ex.ToString() + Environment.NewLine); }
+                    }
+                }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"ShowNewGroupDialogAsync failed: {ex}");
-                return;
-            }
-
-            if (ok && Wallpaper != null && !string.IsNullOrEmpty(Wallpaper.ProjectJsonPath))
-            {
-                var groupRaw = dlg.Input;
-                var group = NormalizeGroupName(groupRaw);
-                if (!string.IsNullOrWhiteSpace(group))
-                {
-                    // 获取MainViewModel实例
-                    var vm = App.Current.Services.GetService(typeof(ViewModels.MainViewModel)) as ViewModels.MainViewModel;
-                    
-                    // 通过MainViewModel添加分组，确保分组列表自动刷新
-                    vm?.AddGroup(group);
-
-                    // 添加分组到壁纸
-                    var wallpaperGroups = Wallpaper.Groups ?? new System.Collections.Generic.List<string>();
-                    if (!wallpaperGroups.Contains(group))
-                    {
-                        wallpaperGroups.Add(group);
-                        Wallpaper.Groups = wallpaperGroups;
-                        fav?.AddGroupToWallpaper(Wallpaper.ProjectJsonPath, group);
-                    }
-
-                    // 刷新过滤
-                    vm?.RefreshFilters();
-                }
+                System.Diagnostics.Debug.WriteLine($"Unhandled exception in ShowNewGroupDialogAsync: {ex}");
+                System.IO.File.AppendAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "CrashLog_NewGroup_Unhandled.txt"), ex.ToString() + Environment.NewLine);
             }
         }
 
@@ -276,6 +346,10 @@ namespace WallpaperDockWinUI.Views
 
         private void WallpaperItem_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
+            // 在批量模式下，不执行悬浮效果
+            if (IsBatchMode)
+                return;
+
             if (_compositor == null || _rootVisual == null)
                 return;
 
@@ -314,8 +388,86 @@ namespace WallpaperDockWinUI.Views
             }
         }
 
+        private async Task DeleteWallpaperAsync()
+        {
+            if (Wallpaper == null || string.IsNullOrEmpty(Wallpaper.ProjectJsonPath))
+                return;
+
+            // 显示删除确认提示框
+            var dialog = new ContentDialog
+            {
+                Title = "删除壁纸",
+                Content = "确定要删除此壁纸吗？此操作不可恢复，将删除整个壁纸文件夹及其所有内容。",
+                PrimaryButtonText = "删除",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Close
+            };
+
+            dialog.XamlRoot = this.XamlRoot;
+            var result = await dialog.ShowAsync();
+
+            if (result != ContentDialogResult.Primary)
+                return;
+
+            try
+            {
+                // 获取壁纸文件夹路径（从ProjectJsonPath中提取）
+                string wallpaperFolderPath = Path.GetDirectoryName(Wallpaper.ProjectJsonPath);
+                if (string.IsNullOrEmpty(wallpaperFolderPath))
+                {
+                    ShowToast("错误", "无法确定壁纸文件夹路径");
+                    return;
+                }
+
+                // 检查文件夹是否存在
+                if (!Directory.Exists(wallpaperFolderPath))
+                {
+                    ShowToast("错误", "壁纸文件夹不存在");
+                    return;
+                }
+
+                // 删除整个文件夹及其所有内容
+                Directory.Delete(wallpaperFolderPath, true);
+
+                // 刷新UI界面
+                var vm = App.Current.Services.GetService(typeof(ViewModels.MainViewModel)) as ViewModels.MainViewModel;
+                if (vm != null)
+                {
+                    await vm.RefreshWallpapers();
+                }
+
+                // 显示删除成功的Toast消息
+                ShowToast("成功", "壁纸删除成功");
+            }
+            catch (Exception ex)
+            {
+                // 处理异常情况
+                string errorMessage = ex.Message;
+                if (ex is UnauthorizedAccessException)
+                {
+                    errorMessage = "权限不足，无法删除壁纸文件夹";
+                }
+                else if (ex is IOException)
+                {
+                    errorMessage = "文件被占用，无法删除壁纸文件夹";
+                }
+                ShowToast("错误", errorMessage);
+            }
+        }
+
+        private void ShowToast(string title, string message)
+        {
+            var toast = new ToastNotificationWindow(title, message);
+            toast.Activate();
+            toast.ShowWithoutActivation();
+        }
+
         private void WallpaperItem_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
+            // 在批量模式下，不执行悬浮效果
+            if (IsBatchMode)
+                return;
+
             if (_compositor == null || _rootVisual == null)
                 return;
 
@@ -363,15 +515,42 @@ namespace WallpaperDockWinUI.Views
                 // Update main title
                 item.TitleText.Text = display;
 
-                // 让顶部文字为白色以便在各种缩略图上可读
-                item.TitleText.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
-
                 // R18 badge
                 if (item.R18Badge != null)
                     item.R18Badge.Visibility = wallpaper.IsR18 ? Visibility.Visible : Visibility.Collapsed;
 
                 // Load preview image
                 item.LoadPreviewImageAsync(wallpaper);
+            }
+        }
+
+        private static void OnIsSelectedChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is WallpaperItem item && e.NewValue is bool isSelected)
+            {
+                if (item.RootGrid != null)
+                {
+                    if (isSelected)
+                    {
+                        // 选中状态：蓝色边框
+                        item.RootGrid.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Blue);
+                        item.RootGrid.BorderThickness = new Thickness(3);
+                    }
+                    else
+                    {
+                        // 未选中状态：恢复默认样式
+                        try
+                        {
+                            item.RootGrid.BorderBrush = (SolidColorBrush)App.Current.Resources["BorderBrush"];
+                        }
+                        catch
+                        {
+                            // 如果获取默认边框刷失败，使用灰色
+                            item.RootGrid.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Gray);
+                        }
+                        item.RootGrid.BorderThickness = new Thickness(1);
+                    }
+                }
             }
         }
 

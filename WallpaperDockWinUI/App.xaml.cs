@@ -19,6 +19,32 @@ namespace WallpaperDockWinUI
         private IAutoHideService? _autoHideService;
         private ITrayIconService? _trayIconService;
 
+        // Track whether window is currently dock mode (true) or fullscreen (false)
+        private bool _isDockMode = true;
+
+        /// <summary>
+        /// Toggle between dock window and fullscreen window
+        /// </summary>
+        public void ToggleWindowMode()
+        {
+            try
+            {
+                if (_isDockMode)
+                {
+                    ConfigureWindowAsFullscreen(window);
+                }
+                else
+                {
+                    ConfigureWindowAsDock(window);
+                }
+                // 移除这一行，因为_isDockMode已经在ConfigureWindowAsFullscreen和ConfigureWindowAsDock方法中正确设置了
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ToggleWindowMode failed: {ex.Message}");
+            }
+        }
+
         /// <summary>
         /// Gets the current <see cref="App"/> instance in use
         /// </summary>
@@ -65,6 +91,11 @@ namespace WallpaperDockWinUI
         {
             this.InitializeComponent();
             Services = ConfigureServices();
+
+            // Global exception capture for diagnosing startup crashes
+            this.UnhandledException += App_UnhandledException;
+            AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+            TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
         }
 
         /// <summary>
@@ -81,6 +112,7 @@ namespace WallpaperDockWinUI
             services.AddSingleton<IImageCacheService, ImageCacheService>();
             services.AddSingleton<IMonitorService, MonitorService>();
             services.AddSingleton<IColorService, ColorService>();
+            services.AddSingleton<IThemeService, ThemeService>();
             services.AddSingleton<IFavoritesService, FavoritesService>();
             services.AddSingleton<ITrayIconService, TrayIconService>();
 
@@ -118,6 +150,10 @@ namespace WallpaperDockWinUI
                 rootFrame.NavigationFailed += OnNavigationFailed;
                 window.Content = rootFrame;
             }
+
+            // Apply system theme (Light/Dark) to the root frame so ThemeDictionaries take effect
+            var themeService = Services.GetService<IThemeService>();
+            themeService?.ApplyThemeTo(rootFrame);
 
             _ = rootFrame.Navigate(typeof(MainPage), e.Arguments);
                 window.Activate();
@@ -166,6 +202,42 @@ namespace WallpaperDockWinUI
                 {
                     window.SystemBackdrop = new Microsoft.UI.Xaml.Media.MicaBackdrop();
                 }
+
+                // Ensure presenter is normal/floating for dock mode
+                try
+                {
+                    window.AppWindow.SetPresenter(AppWindowPresenterKind.Default);
+                }
+                catch { }
+
+                // Mark dock mode active
+                _isDockMode = true;
+            }
+        }
+
+        /// <summary>
+        /// Configures the window as fullscreen
+        /// </summary>
+        /// <param name="window">The window to configure</param>
+        private void ConfigureWindowAsFullscreen(Window window)
+        {
+            try
+            {
+                // Set presenter to full screen
+                window.AppWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
+
+                // 确保窗口不会显示在 alt+tab 切换列表中
+                window.AppWindow.IsShownInSwitchers = false;
+
+                // Un-extend content into title bar so standard fullscreen is used
+                window.ExtendsContentIntoTitleBar = false;
+
+                // Mark dock mode off
+                _isDockMode = false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ConfigureWindowAsFullscreen failed: {ex.Message}");
             }
         }
 
@@ -214,6 +286,34 @@ namespace WallpaperDockWinUI
             
             // Clean up tray icon service
             _trayIconService?.Dispose();
+        }
+
+        private void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
+        {
+            try
+            {
+                System.IO.File.WriteAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "CrashLog_UnhandledException.txt"), e.Exception.ToString());
+            }
+            catch { }
+        }
+
+        private void CurrentDomain_UnhandledException(object sender, System.UnhandledExceptionEventArgs e)
+        {
+            try
+            {
+                var ex = e.ExceptionObject as Exception;
+                System.IO.File.WriteAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "CrashLog_CurrentDomain.txt"), ex?.ToString() ?? "null");
+            }
+            catch { }
+        }
+
+        private void TaskScheduler_UnobservedTaskException(object sender, System.Threading.Tasks.UnobservedTaskExceptionEventArgs e)
+        {
+            try
+            {
+                System.IO.File.WriteAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "CrashLog_TaskScheduler.txt"), e.Exception.ToString());
+            }
+            catch { }
         }
     }
 }
