@@ -34,6 +34,7 @@ namespace WallpaperDockWinUI.Views
         private Button? _batchOperationsButton;
         private Button? _schedulePlayButton;
         private Grid? _batchToolbarContainer;
+        private TextBlock? _playbackStatusText;
 
         private ProgressRing? _loadingRing;
         private GridView? _wallpaperList;
@@ -84,6 +85,7 @@ namespace WallpaperDockWinUI.Views
         {
             this.InitializeComponent();
             ViewModel = (MainViewModel)(App.Current.Services.GetService(typeof(MainViewModel)) ?? throw new InvalidOperationException("ViewModel cannot be null"));
+            ViewModel.PropertyChanged += ViewModel_PropertyChanged;
             Loaded += MainPage_Loaded;
             BuildUI();
         }
@@ -192,6 +194,7 @@ namespace WallpaperDockWinUI.Views
             _batchOperationsButton = BatchOperationsButton;
             _schedulePlayButton = SchedulePlayButton;
             _batchToolbarContainer = BatchToolbarContainer;
+            _playbackStatusText = PlaybackStatusText;
             
             // 初始化按钮显示状态
             UpdateButtonsVisibility();
@@ -426,6 +429,9 @@ namespace WallpaperDockWinUI.Views
             await ViewModel.LoadWallpapersAsync();
             UpdateUI();
             
+            // 更新播放状态显示
+            UpdatePlaybackStatusDisplay();
+            
             // 初始化布局，确保在数据加载完成后正确应用
             // 使用 DispatcherQueue 确保在 UI 线程执行，并且在数据加载完成后执行
             _ = DispatcherQueue.TryEnqueue(() => {
@@ -477,6 +483,11 @@ namespace WallpaperDockWinUI.Views
                     _groupComboBox.ItemsSource = ViewModel.Groups;
                     _groupComboBox.SelectedItem = ViewModel.SelectedGroup;
                 }
+            }
+            // 当播放状态相关属性变化时
+            else if (e.PropertyName == nameof(MainViewModel.IsPlaying) || e.PropertyName == nameof(MainViewModel.CurrentPlayingPlaylist))
+            {
+                UpdatePlaybackStatusDisplay();
             }
         }
 
@@ -1145,11 +1156,37 @@ namespace WallpaperDockWinUI.Views
                         _batchOperationsButton.Visibility = buttonsVisibility;
                     if (_schedulePlayButton != null)
                         _schedulePlayButton.Visibility = buttonsVisibility;
+                    if (_playbackStatusText != null)
+                        _playbackStatusText.Visibility = buttonsVisibility;
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"UpdateButtonsVisibility failed: {ex.Message}");
+            }
+        }
+
+        private void UpdatePlaybackStatusDisplay()
+        {
+            try
+            {
+                if (_playbackStatusText != null && ViewModel != null)
+                {
+                    if (ViewModel.IsPlaying && !string.IsNullOrEmpty(ViewModel.CurrentPlayingPlaylist))
+                    {
+                        _playbackStatusText.Text = $"正在播放: {ViewModel.CurrentPlayingPlaylist}";
+                        _playbackStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Green);
+                    }
+                    else
+                    {
+                        _playbackStatusText.Text = "未播放";
+                        _playbackStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"UpdatePlaybackStatusDisplay failed: {ex.Message}");
             }
         }
 
@@ -1443,6 +1480,8 @@ namespace WallpaperDockWinUI.Views
                                 count++;
                             }
                         }
+                        // 刷新分组和过滤，确保 UI 即时更新
+                        vm.RefreshGroupsAndFilter();
                         ShowToastNotification("成功", $"已将 {count} 个壁纸添加到分组 '{groupName}'");
                     }
                 }
@@ -1659,7 +1698,7 @@ namespace WallpaperDockWinUI.Views
 
 
 
-        private void SchedulePlayButton_Click(object sender, RoutedEventArgs e)
+        private async void SchedulePlayButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
@@ -1673,7 +1712,7 @@ namespace WallpaperDockWinUI.Views
                 }
                 
                 // 显示对话框
-                dialog.ShowAsync();
+                await dialog.ShowAsync();
             }
             catch (Exception ex)
             {

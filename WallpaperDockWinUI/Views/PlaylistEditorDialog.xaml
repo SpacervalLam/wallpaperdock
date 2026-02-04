@@ -7,19 +7,21 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
     Title="播放列表编辑器"
-    PrimaryButtonText="确定"
-    SecondaryButtonText="取消"
-    PrimaryButtonClick="ContentDialog_PrimaryButtonClick"
-    SecondaryButtonClick="ContentDialog_SecondaryButtonClick">
+    CloseButtonText="关闭"
+    DefaultButton="Close">
     <StackPanel Spacing="16">
         <!-- 播放列表选择和管理 -->
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <ComboBox x:Name="PlaylistComboBox" Grid.Column="0" Margin="0,0,8,0" />
-            <Button x:Name="NewPlaylistButton" Grid.Column="1" Content="新建" Click="NewPlaylistButton_Click" />
+            <ComboBox x:Name="PlaylistComboBox" Grid.Column="0" MinWidth="80" Margin="0,0,10,0" HorizontalAlignment="Stretch" />
+            <Button x:Name="NewPlaylistButton" Grid.Column="1" Content="新建" Click="NewPlaylistButton_Click" Margin="0,0,5,0" />
+            <Button x:Name="RenamePlaylistButton" Grid.Column="2" Content="重命名" Click="RenamePlaylistButton_Click" Margin="0,0,5,0" />
+            <Button x:Name="DeletePlaylistButton" Grid.Column="3" Content="删除" Click="DeletePlaylistButton_Click" />
         </Grid>
 
         <!-- 播放列表内容 -->
@@ -29,7 +31,7 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
             <TextBlock Grid.Row="0" Text="播放列表内容" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,8" />
-            <ListView x:Name="PlaylistListView" Grid.Row="1" CanReorderItems="True" AllowDrop="True" ReorderMode="Enabled">
+            <ListView x:Name="PlaylistListView" Grid.Row="1" CanReorderItems="True" AllowDrop="True" ReorderMode="Enabled" MaxHeight="300" ScrollViewer.VerticalScrollBarVisibility="Auto">
                 <ListView.ItemTemplate>
                     <DataTemplate>
                         <Grid Padding="8">
@@ -96,6 +98,16 @@
                     <ComboBoxItem Content="随机播放" Tag="Random" />
                 </ComboBox>
             </Grid>
+        </Grid>
+
+        <!-- 播放状态显示 -->
+        <Grid Margin="0,8,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="当前状态：" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBlock x:Name="PlaybackStatusText" Grid.Column="1" VerticalAlignment="Center" FontSize="14" />
         </Grid>
 
         <!-- 控制按钮 -->

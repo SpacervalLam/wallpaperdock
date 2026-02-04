@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Threading.Tasks;
 using WallpaperDockWinUI.Services;
 
@@ -105,6 +107,21 @@ namespace WallpaperDockWinUI.ViewModels
             _monitorService = monitorService;
             _colorService = colorService;
             _favoritesService = favoritesService;
+            
+            // 初始化播放列表文件路径
+            string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string appFolderPath = Path.Combine(appDataPath, "WallpaperDock");
+            Directory.CreateDirectory(appFolderPath);
+            _playlistsFilePath = Path.Combine(appFolderPath, "playlists.json");
+            _playlistContentsFilePath = Path.Combine(appFolderPath, "playlist_contents.json");
+            _playbackConfigFilePath = Path.Combine(appFolderPath, "playback_config.json");
+            
+            // 加载播放列表数据
+            LoadPlaylists();
+            LoadPlaylistContents();
+            
+            // 加载播放配置
+            LoadPlaybackConfig();
             
             // 订阅 FavoritesService 的 DataChanged 事件，以便在数据变化时自动刷新 UI
             _favoritesService.DataChanged += FavoritesService_DataChanged;
@@ -266,11 +283,41 @@ namespace WallpaperDockWinUI.ViewModels
         private string? _currentPlayingPlaylist;
         private int _currentPlaylistIndex = 0;
         private string _playOrder = "Sequential";
+        private int _playInterval = 300; // 默认 5 分钟
+        private bool _isPlaying = false;
+        private readonly string _playlistsFilePath;
+        private readonly string _playlistContentsFilePath;
+        private readonly string _playbackConfigFilePath;
 
         public List<string> Playlists
         {
             get => _playlists;
             set => SetProperty(ref _playlists, value);
+        }
+
+        // 播放状态相关属性
+        public bool IsPlaying
+        {
+            get => _isPlaying;
+            set => SetProperty(ref _isPlaying, value);
+        }
+
+        public string? CurrentPlayingPlaylist
+        {
+            get => _currentPlayingPlaylist;
+            set => SetProperty(ref _currentPlayingPlaylist, value);
+        }
+
+        public int PlayInterval
+        {
+            get => _playInterval;
+            set => SetProperty(ref _playInterval, value);
+        }
+
+        public string PlayOrder
+        {
+            get => _playOrder;
+            set => SetProperty(ref _playOrder, value);
         }
 
         public List<string> Groups
@@ -377,6 +424,7 @@ namespace WallpaperDockWinUI.ViewModels
             {
                 _favoritesService.AddGroup(groupName);
                 LoadGroups();
+                FilterWallpapers();
             }
         }
 
@@ -524,7 +572,76 @@ namespace WallpaperDockWinUI.ViewModels
             {
                 _playlists.Add(playlistName);
                 _playlistContents[playlistName] = new List<WallpaperInfo>();
+                SavePlaylists();
+                SavePlaylistContents();
                 OnPropertyChanged(nameof(Playlists));
+            }
+        }
+
+        public void LoadPlaylists()
+        {
+            try
+            {
+                if (File.Exists(_playlistsFilePath))
+                {
+                    string json = File.ReadAllText(_playlistsFilePath);
+                    var playlists = JsonSerializer.Deserialize<List<string>>(json);
+                    if (playlists != null)
+                    {
+                        _playlists = playlists;
+                        OnPropertyChanged(nameof(Playlists));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading playlists: {ex.Message}");
+            }
+        }
+
+        public void LoadPlaylistContents()
+        {
+            try
+            {
+                if (File.Exists(_playlistContentsFilePath))
+                {
+                    string json = File.ReadAllText(_playlistContentsFilePath);
+                    var playlistContents = JsonSerializer.Deserialize<Dictionary<string, List<WallpaperInfo>>>(json);
+                    if (playlistContents != null)
+                    {
+                        _playlistContents = playlistContents;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading playlist contents: {ex.Message}");
+            }
+        }
+
+        private void SavePlaylists()
+        {
+            try
+            {
+                string json = JsonSerializer.Serialize(_playlists);
+                File.WriteAllText(_playlistsFilePath, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving playlists: {ex.Message}");
+            }
+        }
+
+        private void SavePlaylistContents()
+        {
+            try
+            {
+                string json = JsonSerializer.Serialize(_playlistContents);
+                File.WriteAllText(_playlistContentsFilePath, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving playlist contents: {ex.Message}");
             }
         }
 
@@ -549,6 +666,7 @@ namespace WallpaperDockWinUI.ViewModels
                 if (!_playlistContents[playlistName].Contains(wallpaper))
                 {
                     _playlistContents[playlistName].Add(wallpaper);
+                    SavePlaylistContents();
                 }
             }
         }
@@ -558,6 +676,7 @@ namespace WallpaperDockWinUI.ViewModels
             if (wallpaper != null && !string.IsNullOrWhiteSpace(playlistName) && _playlistContents.ContainsKey(playlistName))
             {
                 _playlistContents[playlistName].Remove(wallpaper);
+                SavePlaylistContents();
             }
         }
 
@@ -566,6 +685,57 @@ namespace WallpaperDockWinUI.ViewModels
             if (!string.IsNullOrWhiteSpace(playlistName))
             {
                 _playlistContents[playlistName] = content;
+                SavePlaylistContents();
+            }
+        }
+
+        public void DeletePlaylist(string playlistName)
+        {
+            if (!string.IsNullOrWhiteSpace(playlistName) && _playlists.Contains(playlistName))
+            {
+                // 如果要删除的是当前正在播放的播放列表，则停止播放
+                if (_currentPlayingPlaylist == playlistName)
+                {
+                    StopPlaylistPlayback();
+                }
+                
+                _playlists.Remove(playlistName);
+                _playlistContents.Remove(playlistName);
+                SavePlaylists();
+                SavePlaylistContents();
+                OnPropertyChanged(nameof(Playlists));
+            }
+        }
+
+        public void RenamePlaylist(string oldName, string newName)
+        {
+            if (!string.IsNullOrWhiteSpace(oldName) && !string.IsNullOrWhiteSpace(newName) && oldName != newName)
+            {
+                int index = _playlists.IndexOf(oldName);
+                if (index != -1 && !_playlists.Contains(newName))
+                {
+                    // 更新播放列表名称
+                    _playlists[index] = newName;
+                    
+                    // 更新播放列表内容字典
+                    if (_playlistContents.ContainsKey(oldName))
+                    {
+                        var content = _playlistContents[oldName];
+                        _playlistContents.Remove(oldName);
+                        _playlistContents[newName] = content;
+                    }
+                    
+                    // 如果重命名的是当前正在播放的播放列表，则更新当前播放列表名称
+                    if (_currentPlayingPlaylist == oldName)
+                    {
+                        _currentPlayingPlaylist = newName;
+                        SavePlaybackConfig();
+                    }
+                    
+                    SavePlaylists();
+                    SavePlaylistContents();
+                    OnPropertyChanged(nameof(Playlists));
+                }
             }
         }
 
@@ -576,8 +746,16 @@ namespace WallpaperDockWinUI.ViewModels
 
             // 设置当前播放列表
             _currentPlayingPlaylist = playlistName;
+            _playInterval = interval;
             _playOrder = playOrder;
             _currentPlaylistIndex = 0;
+            _isPlaying = true;
+
+            // 通知 UI 更新
+            OnPropertyChanged(nameof(CurrentPlayingPlaylist));
+            OnPropertyChanged(nameof(PlayInterval));
+            OnPropertyChanged(nameof(PlayOrder));
+            OnPropertyChanged(nameof(IsPlaying));
 
             // 创建定时器
             _playlistTimer = new Microsoft.UI.Xaml.DispatcherTimer();
@@ -589,6 +767,9 @@ namespace WallpaperDockWinUI.ViewModels
 
             // 启动定时器
             _playlistTimer.Start();
+
+            // 保存播放配置
+            SavePlaybackConfig();
         }
 
         public void StopPlaylistPlayback()
@@ -600,6 +781,14 @@ namespace WallpaperDockWinUI.ViewModels
                 _playlistTimer = null;
             }
             _currentPlayingPlaylist = null;
+            _isPlaying = false;
+
+            // 通知 UI 更新
+            OnPropertyChanged(nameof(CurrentPlayingPlaylist));
+            OnPropertyChanged(nameof(IsPlaying));
+
+            // 保存播放配置
+            SavePlaybackConfig();
         }
 
         private void PlaylistTimer_Tick(object sender, object e)
@@ -642,6 +831,65 @@ namespace WallpaperDockWinUI.ViewModels
             if (wallpaper != null && !string.IsNullOrEmpty(wallpaper.ProjectJsonPath))
             {
                 _wallpaperService.SwitchWallpaper(wallpaper.ProjectJsonPath);
+            }
+        }
+
+        // 播放配置相关
+        private class PlaybackConfig
+        {
+            public string? CurrentPlayingPlaylist { get; set; }
+            public int PlayInterval { get; set; } = 300;
+            public string PlayOrder { get; set; } = "Sequential";
+            public bool IsPlaying { get; set; } = false;
+        }
+
+        public void LoadPlaybackConfig()
+        {
+            try
+            {
+                if (File.Exists(_playbackConfigFilePath))
+                {
+                    string json = File.ReadAllText(_playbackConfigFilePath);
+                    var config = JsonSerializer.Deserialize<PlaybackConfig>(json);
+                    if (config != null)
+                    {
+                        _currentPlayingPlaylist = config.CurrentPlayingPlaylist;
+                        _playInterval = config.PlayInterval;
+                        _playOrder = config.PlayOrder;
+                        _isPlaying = config.IsPlaying;
+
+                        // 如果配置中显示正在播放，则尝试恢复播放
+                        if (_isPlaying && !string.IsNullOrEmpty(_currentPlayingPlaylist) && _playlistContents.ContainsKey(_currentPlayingPlaylist))
+                        {
+                            StartPlaylistPlayback(_currentPlayingPlaylist, _playInterval, _playOrder);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading playback config: {ex.Message}");
+            }
+        }
+
+        public void SavePlaybackConfig()
+        {
+            try
+            {
+                var config = new PlaybackConfig
+                {
+                    CurrentPlayingPlaylist = _currentPlayingPlaylist,
+                    PlayInterval = _playInterval,
+                    PlayOrder = _playOrder,
+                    IsPlaying = _isPlaying
+                };
+
+                string json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(_playbackConfigFilePath, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving playback config: {ex.Message}");
             }
         }
 

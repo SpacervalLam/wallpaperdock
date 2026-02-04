@@ -26,6 +26,22 @@ namespace WallpaperDockWinUI.Services
         {
             return Title ?? "Unknown Wallpaper";
         }
+
+        public override bool Equals(object? obj)
+        {
+            if (obj is WallpaperInfo other)
+            {
+                // 使用 ProjectJsonPath 作为唯一标识来判断壁纸是否相同
+                return string.Equals(this.ProjectJsonPath, other.ProjectJsonPath, StringComparison.OrdinalIgnoreCase);
+            }
+            return false;
+        }
+
+        public override int GetHashCode()
+        {
+            // 使用 ProjectJsonPath 的哈希码，确保相同 ProjectJsonPath 的壁纸具有相同的哈希码
+            return ProjectJsonPath?.GetHashCode(StringComparison.OrdinalIgnoreCase) ?? 0;
+        }
     }
 
     public class ProjectJson

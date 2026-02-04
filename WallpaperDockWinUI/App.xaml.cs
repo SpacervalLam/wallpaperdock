@@ -117,7 +117,7 @@ namespace WallpaperDockWinUI
             services.AddSingleton<ITrayIconService, TrayIconService>();
 
             // Register view models
-            services.AddTransient<MainViewModel>();
+            services.AddSingleton<MainViewModel>();
 
             return services.BuildServiceProvider();
         }
