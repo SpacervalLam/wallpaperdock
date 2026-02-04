@@ -43,6 +43,9 @@ namespace WallpaperDockWinUI.Views
         // Speech recognition
         private SpeechRecognizer? _speechRecognizer;
         private bool _isListening;
+        private DispatcherTimer? _silenceTimer;
+        private bool _isStopping = false; // 防止重复停止导致的崩溃
+        private const int SilenceTimeoutSeconds = 3; // 3秒无话自动停止
 
         // ========== 配置项（根据你项目调整） ==========
         // 单项最大宽度阈值（像素）
@@ -1027,13 +1030,13 @@ namespace WallpaperDockWinUI.Views
             {
                 if (_isListening)
                 {
-                    // Stop listening
-                    await StopSpeechRecognitionAsync();
+                    // Stop listening and dispose recognizer when user manually stops
+                    await StopSpeechRecognition(true);
                 }
                 else
                 {
                     // Start listening
-                    await StartSpeechRecognitionAsync();
+                    await StartSpeechRecognition();
                 }
             }
             catch (Exception ex)
@@ -1043,42 +1046,41 @@ namespace WallpaperDockWinUI.Views
             }
         }
 
-        private async Task StartSpeechRecognitionAsync()
+        private async Task StartSpeechRecognition()
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine("Starting speech recognition...");
-                
-                // Initialize speech recognizer with specified language
+                // 如果正在停止中，不允许重新开始，防止状态错乱
+                if (_isStopping) return;
+
                 if (_speechRecognizer == null)
                 {
-                    System.Diagnostics.Debug.WriteLine("Initializing SpeechRecognizer...");
-                    // Specify Chinese language to avoid language pack issues
                     _speechRecognizer = new SpeechRecognizer(new Windows.Globalization.Language("zh-CN"));
+                    
+                    // 编译约束（这一步是必须的）
+                    await _speechRecognizer.CompileConstraintsAsync();
+
+                    // 订阅事件
                     _speechRecognizer.ContinuousRecognitionSession.ResultGenerated += ContinuousRecognitionSession_ResultGenerated;
+                    
+                    // 错误处理事件（可选，建议加上以增强健壮性）
                     _speechRecognizer.ContinuousRecognitionSession.Completed += ContinuousRecognitionSession_Completed;
-                    System.Diagnostics.Debug.WriteLine("SpeechRecognizer initialized successfully");
                 }
 
-                // Compile grammar
-                System.Diagnostics.Debug.WriteLine("Compiling constraints...");
-                await _speechRecognizer.CompileConstraintsAsync();
-                System.Diagnostics.Debug.WriteLine("Constraints compiled successfully");
-
                 // Start continuous recognition
-                System.Diagnostics.Debug.WriteLine("Starting continuous recognition...");
                 await _speechRecognizer.ContinuousRecognitionSession.StartAsync(SpeechContinuousRecognitionMode.Default);
-                System.Diagnostics.Debug.WriteLine("Continuous recognition started successfully");
-
                 _isListening = true;
+
+                // UI 更新：显示正在录音状态
                 UpdateMicrophoneButtonState(true);
-                System.Diagnostics.Debug.WriteLine("Speech recognition started successfully");
+
+                // ---【新增】启动静默计时器 ---
+                StartSilenceTimer();
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error starting speech recognition: {ex.Message}, HResult: {ex.HResult}");
-                
-                // Show toast notification with error message
+                _isListening = false; // 确保状态复位
                 ShowToastNotification("语音识别错误", $"语音识别启动失败: {ex.Message}\n错误代码: {ex.HResult.ToString("X8")}", true);
             }
         }
@@ -1093,45 +1095,127 @@ namespace WallpaperDockWinUI.Views
             });
         }
 
-        private async Task StopSpeechRecognitionAsync()
+        private void StartSilenceTimer()
         {
+            // 如果已有计时器，先停止
+            StopSilenceTimer();
+
+            // 在 UI 线程创建计时器
+            _silenceTimer = new DispatcherTimer();
+            _silenceTimer.Interval = TimeSpan.FromSeconds(SilenceTimeoutSeconds);
+            _silenceTimer.Tick += (s, e) =>
+            {
+                // 计时器时间到，说明用户停止说话了
+                StopSilenceTimer();
+                _ = StopSpeechRecognition(false); // 触发停止，但不销毁对象，让识别结果可以继续处理
+            };
+            _silenceTimer.Start();
+        }
+
+        private void StopSilenceTimer()
+        {
+            if (_silenceTimer != null)
+            {
+                _silenceTimer.Stop();
+                _silenceTimer = null;
+            }
+        }
+
+        private async Task StopSpeechRecognition(bool disposeRecognizer = false)
+        {
+            // 1. 检查是否已经在停止过程中，防止重复进入导致崩溃
+            if (_isStopping || _speechRecognizer == null) return;
+            
+            _isStopping = true; // 标记开始停止
+            StopSilenceTimer(); // 停止计时器
+
             try
             {
-                System.Diagnostics.Debug.WriteLine("Stopping speech recognition...");
-                
-                if (_speechRecognizer != null && _isListening)
+                // 2. 先更新 UI，让用户感觉到立即停止
+                UpdateMicrophoneButtonState(false);
+
+                // 3. 安全地停止会话
+                if (_speechRecognizer.State != SpeechRecognizerState.Idle)
                 {
-                    await _speechRecognizer.ContinuousRecognitionSession.StopAsync();
-                    _isListening = false;
-                    UpdateMicrophoneButtonState(false);
-                    System.Diagnostics.Debug.WriteLine("Speech recognition stopped successfully");
+                    try 
+                    {
+                        // StopAsync 可能会抛出异常（例如如果已经停了），必须捕获
+                        await _speechRecognizer.ContinuousRecognitionSession.StopAsync();
+                    }
+                    catch { /* 忽略停止过程中的错误 */ }
                 }
-                else
+
+                // 4. 只有在用户明确要求时才销毁对象
+                if (disposeRecognizer)
                 {
-                    System.Diagnostics.Debug.WriteLine("Speech recognition is not running");
+                    // 取消事件订阅
+                    _speechRecognizer.ContinuousRecognitionSession.ResultGenerated -= ContinuousRecognitionSession_ResultGenerated;
+                    _speechRecognizer.ContinuousRecognitionSession.Completed -= ContinuousRecognitionSession_Completed;
+                    
+                    // 销毁对象
+                    _speechRecognizer.Dispose();
+                    _speechRecognizer = null;
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error stopping speech recognition: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"停止语音识别异常: {ex.Message}");
                 ShowToastNotification("错误", $"停止语音识别失败: {ex.Message}", true);
+            }
+            finally
+            {
+                // 5. 最终复位状态
+                _isListening = false;
+                _isStopping = false;
             }
         }
 
         private void UpdateMicrophoneButtonState(bool isListening)
         {
-            if (_microphoneButton != null)
+            if (_microphoneButton != null && _searchBox != null)
             {
                 // Change button appearance based on listening state
                 if (isListening)
                 {
-                    // Set active state (e.g., change color or icon)
-                    _microphoneButton.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.LightBlue);
+                    // Set active state - change icon color to blue
+                    if (_microphoneButton.Content is Viewbox viewbox && viewbox.Child is Canvas canvas)
+                    {
+                        foreach (var child in canvas.Children)
+                        {
+                            if (child is Microsoft.UI.Xaml.Shapes.Path path)
+                            {
+                                path.Stroke = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.LightBlue);
+                            }
+                            else if (child is Microsoft.UI.Xaml.Shapes.Line line)
+                            {
+                                line.Stroke = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.LightBlue);
+                            }
+                        }
+                    }
+                    
+                    // Change search box placeholder text
+                    _searchBox.PlaceholderText = "listening...";
                 }
                 else
                 {
-                    // Set inactive state
-                    _microphoneButton.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                    // Set inactive state - revert icon color to original
+                    if (_microphoneButton.Content is Viewbox viewbox && viewbox.Child is Canvas canvas)
+                    {
+                        foreach (var child in canvas.Children)
+                        {
+                            if (child is Microsoft.UI.Xaml.Shapes.Path path)
+                            {
+                                path.Stroke = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Gray);
+                            }
+                            else if (child is Microsoft.UI.Xaml.Shapes.Line line)
+                            {
+                                line.Stroke = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Gray);
+                            }
+                        }
+                    }
+                    
+                    // Revert search box placeholder text
+                    _searchBox.PlaceholderText = "Search...";
                 }
             }
         }
@@ -1192,26 +1276,41 @@ namespace WallpaperDockWinUI.Views
 
         private void ContinuousRecognitionSession_ResultGenerated(SpeechContinuousRecognitionSession sender, SpeechContinuousRecognitionResultGeneratedEventArgs args)
         {
-            if (args.Result.Status == SpeechRecognitionResultStatus.Success)
+            // 识别结果处理必须切回 UI 线程
+            DispatcherQueue.TryEnqueue(() =>
             {
-                // Update search box with recognized text
-                DispatcherQueue.TryEnqueue(() =>
+                // 1. 如果还在听，就重置静默计时器（就像看门狗一样）
+                if (_isListening)
                 {
+                    StartSilenceTimer();
+                }
+
+                // 2. 处理识别出来的文字
+                if (!string.IsNullOrEmpty(args.Result.Text))
+                {
+                    // 更新搜索框文字
                     if (_searchBox != null)
                     {
                         _searchBox.Text = args.Result.Text;
-                        // Trigger search
+                        
+                        // 可选：实时触发搜索
                         ViewModel.SearchText = args.Result.Text;
                         UpdateUI();
                     }
-                });
-            }
+                }
+            });
         }
 
         private void ContinuousRecognitionSession_Completed(SpeechContinuousRecognitionSession sender, SpeechContinuousRecognitionCompletedEventArgs args)
         {
-            _isListening = false;
-            UpdateMicrophoneButtonState(false);
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                // 如果是非正常结束，确保清理状态
+                if (_isListening)
+                {
+                    _ = StopSpeechRecognition(false); // 不销毁对象，让识别结果可以继续处理
+                }
+            });
         }
 
         private void OpenWallpaperEngineButton_Click(object sender, RoutedEventArgs e)
