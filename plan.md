@@ -1,3 +1,12 @@
+Wallpaper Engine 的命令行工具并没有标准的 `-silent` 参数直接用于 `openWallpaper` 命令。现有的代码尝试通过添加 `-silent` 参数来实现静音，这不仅可能无效，而且导致了静音状态无法被正确重置（即所谓的“粘滞”效应），从而出现了“无论是否开启静音模式，播放时都是静音”的 Bug。
+
+要修复这个问题，我们需要通过 `-control mute` 和 `-control unmute` 命令显式地控制 Wallpaper Engine 的全局静音状态。
+
+我将修改 `WallpaperEngineService.cs` 文件，在切换壁纸前先根据 `silent` 参数发送对应的静音或取消静音指令。
+
+这是修复后的 `WallpaperEngineService.cs`：
+
+```csharp:wallpaperengineservice.cs
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -64,7 +73,7 @@ namespace WallpaperDockWinUI.Services
     public interface IWallpaperService
     {
         List<WallpaperInfo> ScanWallpapers(string workshopPath);
-        void SwitchWallpaper(string projectJsonPath, int monitorIndex = -1);
+        void SwitchWallpaper(string projectJsonPath, int monitorIndex = -1, bool silent = false);
         string? GetWallpaperEnginePath();
         void OpenWallpaperEngineMainWindow();
     }
@@ -174,7 +183,7 @@ namespace WallpaperDockWinUI.Services
             return wallpapers;
         }
 
-        public void SwitchWallpaper(string projectJsonPath, int monitorIndex = -1)
+        public void SwitchWallpaper(string projectJsonPath, int monitorIndex = -1, bool silent = false)
         {
             try
             {
@@ -186,11 +195,28 @@ namespace WallpaperDockWinUI.Services
                     return;
                 }
 
-                // Build command arguments for opening the wallpaper
-                string arguments = $"-control openWallpaper -file \"{projectJsonPath}\"";
+                // 1. Explicitly control Audio Mute/Unmute state
+                // Wallpaper Engine CLI supports "-control mute" and "-control unmute"
+                // This fixes the issue where mute state might persist incorrectly.
+                string audioArgs = silent ? "-control mute" : "-control unmute";
                 
-                // Add property to disable audio focus detection (prevent sound from cutting out when desktop loses focus)
-                arguments += " -properties \"{\\\"audioFocus\\\":false}\"";
+                ProcessStartInfo audioInfo = new ProcessStartInfo
+                {
+                    FileName = wallpaperEnginePath,
+                    Arguments = audioArgs,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (Process? audioProcess = Process.Start(audioInfo))
+                {
+                    // Wait briefly for the audio command to be processed
+                    audioProcess?.WaitForExit(1000); 
+                }
+
+                // 2. Build command arguments for opening the wallpaper
+                // Note: Removed "-silent" as it is not a standard openWallpaper parameter and causes confusion
+                string arguments = $"-control openWallpaper -file \"{projectJsonPath}\"";
                 
                 if (monitorIndex >= 0)
                 {
@@ -415,3 +441,5 @@ namespace WallpaperDockWinUI.Services
         }
     }
 }
+
+```

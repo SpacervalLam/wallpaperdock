@@ -72,17 +72,6 @@ namespace WallpaperDockWinUI.Views
 
             var menu = new MenuFlyout();
 
-            var silentPlayItem = new MenuFlyoutItem { Text = "静音播放" };
-            silentPlayItem.Click += (s, ev) =>
-            {
-                if (Wallpaper != null && !string.IsNullOrEmpty(Wallpaper.ProjectJsonPath))
-                {
-                    var service = App.Current.Services.GetService(typeof(IWallpaperService)) as IWallpaperService;
-                    service?.SwitchWallpaper(Wallpaper.ProjectJsonPath, -1, true);
-                }
-            };
-            menu.Items.Add(silentPlayItem);
-
             var r18Item = new Microsoft.UI.Xaml.Controls.ToggleMenuFlyoutItem { Text = "标记为R18", IsChecked = Wallpaper.IsR18 };
             r18Item.Click += (s, ev) =>
             {
@@ -155,6 +144,28 @@ namespace WallpaperDockWinUI.Views
             newGroupItem.Click += async (s, ev) => await ShowNewGroupDialogAsync(fav);
             groupSub.Items.Add(newGroupItem);
             menu.Items.Add(groupSub);
+
+            // Add "Set for Monitor" submenu
+            menu.Items.Add(new MenuFlyoutSeparator());
+            var monitorSub = new MenuFlyoutSubItem { Text = "设置到屏幕" };
+            
+            var monitorService = App.Current.Services.GetService(typeof(IMonitorService)) as IMonitorService;
+            var wallpaperService = App.Current.Services.GetService(typeof(IWallpaperService)) as IWallpaperService;
+            var monitors = monitorService?.GetAllMonitors() ?? new List<MonitorInfo>();
+            
+            foreach (var monitor in monitors)
+            {
+                var monitorItem = new MenuFlyoutItem { Text = $"{monitor.Name} (屏幕 {monitor.Index + 1})" };
+                monitorItem.Click += (s, ev) =>
+                {
+                    if (Wallpaper != null && !string.IsNullOrEmpty(Wallpaper.ProjectJsonPath))
+                    {
+                        wallpaperService?.SwitchWallpaper(Wallpaper.ProjectJsonPath, monitor.Index);
+                    }
+                };
+                monitorSub.Items.Add(monitorItem);
+            }
+            menu.Items.Add(monitorSub);
 
             // 添加删除壁纸按钮
             menu.Items.Add(new MenuFlyoutSeparator());

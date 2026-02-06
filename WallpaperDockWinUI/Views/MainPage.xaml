@@ -85,7 +85,7 @@
             <!-- 搜索栏 -->
             <Grid x:Name="SearchBar" Grid.Row="1" Padding="16,8,16,12">
                 <Grid>
-                    <TextBox x:Name="SearchBox" PlaceholderText="Search..." MinHeight="40" CornerRadius="8" VerticalContentAlignment="Center" HorizontalContentAlignment="Left" BorderThickness="1" Padding="40,8,40,8" />
+                    <TextBox x:Name="SearchBox" PlaceholderText="Search..." MinHeight="40" CornerRadius="8" VerticalContentAlignment="Center" HorizontalContentAlignment="Left" BorderThickness="1" Padding="40,8,80,8" />
                     <Viewbox Width="16" Height="16" Margin="14,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" IsHitTestVisible="False">
                         <Canvas Width="24" Height="24">
                             <Ellipse Canvas.Left="5" Canvas.Top="5"
