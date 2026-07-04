@@ -89,14 +89,14 @@ namespace WallpaperDockWinUI.Services
         private void OnMouseCheckTimerTick(object? sender, object e)
         {
             if (_window == null) return;
-            
+
             _displayArea = DisplayArea.GetFromWindowId(_window.AppWindow.Id, DisplayAreaFallback.Nearest);
             if (_displayArea == null) return;
 
             if (!GetCursorPos(out POINT mousePos)) return;
 
             long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            
+
             // 获取屏幕边界
             int screenRight = (int)(_displayArea.WorkArea.X + _displayArea.WorkArea.Width);
             var winPos = _window.AppWindow.Position;
@@ -106,10 +106,10 @@ namespace WallpaperDockWinUI.Services
 
             if (_isHidden)
             {
-                // [状态：隐藏中] 
+                // [状态：隐藏中]
                 // 此时窗口大部分在屏幕外，只有 _visibleStripWidth 在屏幕内
                 // 我们检测鼠标是否在屏幕最右侧的边缘区域
-                
+
                 // 判定鼠标是否在"露出来的那个细条"或者"屏幕边缘"
                 bool atRightEdge = mousePos.X >= (screenRight - _visibleStripWidth * 2); //稍微放宽一点判定范围
                 bool withinY = mousePos.Y >= winPos.Y && mousePos.Y <= winPos.Y + winSize.Height;
@@ -117,7 +117,7 @@ namespace WallpaperDockWinUI.Services
                 if (atRightEdge && withinY)
                 {
                     if (_edgeHoverStartTime == 0) _edgeHoverStartTime = now;
-                    
+
                     if (now - _edgeHoverStartTime >= EdgeShowDelayMs)
                     {
                         StartShowAnimation();
@@ -139,19 +139,36 @@ namespace WallpaperDockWinUI.Services
                     _currentFullWidth = _window.AppWindow.Size.Width;
                 }
 
-                // 判断鼠标是否在窗口范围内
-                bool overWindow = mousePos.X >= winPos.X && mousePos.X <= winPos.X + winSize.Width && 
+                // 判断鼠标是否在窗口可见部分范围内
+                // 窗口在屏幕内的可见区域：[winPos.X, screenRight)
+                int visibleRight = Math.Min(winPos.X + winSize.Width, screenRight);
+                bool overWindow = mousePos.X >= winPos.X && mousePos.X < visibleRight &&
                                   mousePos.Y >= winPos.Y && mousePos.Y <= winPos.Y + winSize.Height;
 
                 if (overWindow)
                 {
                     _lastMouseOverWindowTime = now;
+                    // 修复：隐藏动画进行中（_animTimer 启用）时若鼠标回到窗口可见区域，
+                    // 原逻辑不会取消隐藏动画 → 窗口会继续滑出屏幕尽管用户正悬停其上。
+                    // 立刻停止动画并恢复完全显示。
+                    if (_animTimer != null && _animTimer.IsEnabled)
+                    {
+                        StopAnimation();
+                        // 直接定位到完全显示的位置（屏幕右侧 - 完整宽度）
+                        int targetX = screenRight - _currentFullWidth;
+                        _window.AppWindow.Move(new Windows.Graphics.PointInt32(targetX, winPos.Y));
+                    }
                 }
                 else
                 {
-                    if (now - _lastMouseOverWindowTime >= HideDelayMs)
+                    // 隐藏动画进行中时不要重新触发 StartHideAnimation，
+                    // 否则会在每一帧都重置 _animStartTime，动画永远跑不完。
+                    if (_animTimer == null || !_animTimer.IsEnabled)
                     {
-                        StartHideAnimation();
+                        if (now - _lastMouseOverWindowTime >= HideDelayMs)
+                        {
+                            StartHideAnimation();
+                        }
                     }
                 }
                 _edgeHoverStartTime = 0;

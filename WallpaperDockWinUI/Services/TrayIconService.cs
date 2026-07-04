@@ -264,7 +264,10 @@ namespace WallpaperDockWinUI.Services
                 var exePath = assemblyLocation;
                 if (!string.IsNullOrEmpty(exePath))
                 {
-                    return ExtractIcon(exePath, 0, 1);
+                    // 修复：原调用 ExtractIcon(exePath, 0, 1) 多了一个参数，
+                    // 与下方 P/Invoke 声明不匹配会抛 TypeLoadException。
+                    // 实际 hInstance 在用户态调用时传 IntPtr.Zero 即可，nIconIndex 为 0 表示取第一个图标
+                    return ExtractIcon(IntPtr.Zero, exePath, 0);
                 }
             }
             catch (Exception ex)
@@ -390,7 +393,7 @@ namespace WallpaperDockWinUI.Services
         private static extern IntPtr LoadIcon(IntPtr hInstance, IntPtr lpIconName);
 
         [DllImport("shell32.dll", CharSet = CharSet.Auto)]
-        private static extern IntPtr ExtractIcon(string lpszFile, int nIconIndex, int cxIcon);
+        private static extern IntPtr ExtractIcon(IntPtr hInst, string lpszFile, uint nIconIndex);
 
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         private static extern bool DestroyIcon(IntPtr hIcon);

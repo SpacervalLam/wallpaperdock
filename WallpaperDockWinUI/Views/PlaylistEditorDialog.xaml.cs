@@ -27,7 +27,13 @@ namespace WallpaperDockWinUI.Views
         // 处理对话框关闭事件
         private void PlaylistEditorDialog_Closing(ContentDialog sender, ContentDialogClosingEventArgs args)
         {
-            // 可以在这里添加关闭前的清理逻辑
+            // 修复：Loaded 中订阅了 _viewModel.PropertyChanged，关闭时必须退订，
+            // 否则 viewmodel 会一直持有本对话框的引用（每次重新打开对话框都会累积一个泄漏的订阅，
+            // 且每次 IsPlaying/CurrentPlayingPlaylist 变化都会触发已关闭对话框的回调）
+            if (_viewModel != null)
+            {
+                _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
+            }
         }
 
         private void PlaylistEditorDialog_Loaded(object sender, RoutedEventArgs e)

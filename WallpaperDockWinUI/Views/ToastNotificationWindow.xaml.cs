@@ -169,7 +169,10 @@ namespace WallpaperDockWinUI.Views
 
         private void CloseWithAnimation()
         {
-            _closeTimer.Stop();
+            // 修复：_closeTimer 在 RootCard_Loaded 中才创建。
+            // 若构造期间构造了新 toast 替换旧 toast，旧 toast 的 RootCard_Loaded 可能尚未触发，
+            // 此时调用 CloseWithAnimation 会因 _closeTimer 为 null 而抛 NullReferenceException。
+            _closeTimer?.Stop();
             var storyboard = new Storyboard();
             var fadeAnim = new DoubleAnimation
             {

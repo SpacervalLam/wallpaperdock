@@ -34,21 +34,37 @@ namespace WallpaperDockWinUI.Services
             {
                 if (displayDevice.StateFlags.HasFlag(DISPLAY_DEVICE_FLAGS.DISPLAY_DEVICE_ACTIVE))
                 {
-                    // Get detailed information for this display
-                    var detailedDisplayDevice = new DISPLAY_DEVICE { cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE)) };
-                    if (EnumDisplayDevices(displayDevice.DeviceName, 0, ref detailedDisplayDevice, 0))
+                    // 修复：原来只调用 EnumDisplayDevices(adapterName, 0, ...)，仅枚举每个适配器的第 0 号显示器。
+                    // 现代多显示器系统通常是一个适配器拖多个显示器，会漏掉除第一块屏以外的所有屏幕。
+                    // 改为遍历该适配器下所有显示器。
+                    for (uint j = 0; ; j++)
                     {
+                        var detailedDisplayDevice = new DISPLAY_DEVICE { cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE)) };
+                        if (!EnumDisplayDevices(displayDevice.DeviceName, j, ref detailedDisplayDevice, 0))
+                            break;
+
+                        // 只要处于活动状态的显示器
+                        if (!detailedDisplayDevice.StateFlags.HasFlag(DISPLAY_DEVICE_FLAGS.DISPLAY_DEVICE_ACTIVE))
+                            continue;
+
                         // Get display settings
                         var devMode = new DEVMODE { dmSize = (short)Marshal.SizeOf(typeof(DEVMODE)) };
                         if (EnumDisplaySettings(displayDevice.DeviceName, ENUM_CURRENT_SETTINGS, ref devMode))
                         {
                             // Check if this is the primary monitor
-                            bool isPrimary = displayDevice.StateFlags.HasFlag(DISPLAY_DEVICE_FLAGS.DISPLAY_DEVICE_PRIMARY_DEVICE);
+                            bool isPrimary = (devMode.dmPosition.x == 0 && devMode.dmPosition.y == 0)
+                                || displayDevice.StateFlags.HasFlag(DISPLAY_DEVICE_FLAGS.DISPLAY_DEVICE_PRIMARY_DEVICE);
+
+                            // 显示器名称：detailedDisplayDevice.DeviceString 通常是显示器型号；
+                            // 若为空则回退到适配器名以避免 UI 显示空白
+                            string monitorName = string.IsNullOrWhiteSpace(detailedDisplayDevice.DeviceString)
+                                ? displayDevice.DeviceString
+                                : detailedDisplayDevice.DeviceString;
 
                             monitors.Add(new MonitorInfo
                             {
                                 Index = index,
-                                Name = detailedDisplayDevice.DeviceString,
+                                Name = monitorName,
                                 Bounds = new Windows.Graphics.RectInt32
                                 {
                                     X = devMode.dmPosition.x,

@@ -8,25 +8,25 @@
     HorizontalAlignment="Stretch"
     MinHeight="120">
 
-    <!-- 提高高度与宽度，并保证图像区域占比更大 -->
-
-    <!-- 更现代、更透明 -->
-    <Grid x:Name="RootGrid" CornerRadius="8"
-          Background="Transparent"
+    <Grid x:Name="RootGrid" CornerRadius="10"
+          Background="{ThemeResource SurfaceBrush}"
           BorderBrush="{ThemeResource BorderBrush}"
           BorderThickness="1"
           Padding="0"
           RenderTransformOrigin="0.5,0.5">
-        
-
+        <Grid.RenderTransform>
+            <ScaleTransform x:Name="RootScale" ScaleX="1" ScaleY="1" />
+        </Grid.RenderTransform>
+        <Grid.Shadow>
+            <ThemeShadow x:Name="RootShadow" />
+        </Grid.Shadow>
 
         <Grid.RowDefinitions>
-            <!-- 使预览图为横向（宽>高）的缩略图：固定高度、占据大部分宽度 -->
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" CornerRadius="8,8,0,0" Margin="0" Background="{ThemeResource SurfaceBrush}" Height="96" HorizontalAlignment="Stretch">
+        <Border Grid.Row="0" CornerRadius="10,10,0,0" Margin="0" Background="{ThemeResource SurfaceBrush}" Height="100" HorizontalAlignment="Stretch">
             <Grid>
                 <ProgressRing x:Name="LoadingIndicator"
                                IsActive="True"
@@ -41,12 +41,7 @@
                        Width="Auto"
                        Height="Auto"/>
 
-                <!-- 如果需要裁切为圆角，可用 Clip（可选，留着注释以备将来启用） -->
-                <!-- <Image.Clip>
-                    <RectangleGeometry Rect="0,0,200,100" RadiusX="8" RadiusY="8"/>
-                </Image.Clip> -->
-
-                <!-- 美观的 R18 标记角标：左上角，渐变背景，圆角和稍大内边距 -->
+                <!-- R18 角标：左上角，渐变背景，圆角和稍大内边距 -->
                 <Border x:Name="R18Badge" CornerRadius="0,6,6,0" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8" Padding="8,4" Visibility="Collapsed">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
@@ -56,13 +51,21 @@
                     </Border.Background>
                     <TextBlock Text="R18" Foreground="{ThemeResource BadgeTextBrush}" FontSize="11" FontWeight="Bold" />
                 </Border>
+
+                <!-- 底部渐变叠层：让标题在任意缩略图上都可读，并增加层次感 -->
+                <Border VerticalAlignment="Bottom" Height="40" CornerRadius="0,0,0,0" IsHitTestVisible="False">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="Transparent" Offset="0" />
+                            <GradientStop Color="#80000000" Offset="1" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
             </Grid>
         </Border>
 
-        <Grid Grid.Row="1" Padding="8,6,8,8" Background="Transparent">
-            <!-- 移除标题底色矩形，仅保留白色描边文本 -->
-            <Grid x:Name="TitleTextContainer" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Margin="8,0,8,6">
-                <!-- Shadow copy behind main title to improve readability on varied thumbnails -->
+        <Grid Grid.Row="1" Padding="10,8,10,10" Background="Transparent">
+            <Grid x:Name="TitleTextContainer" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Margin="0">
                 <TextBlock x:Name="TitleTextShadow" Text="{Binding Text, ElementName=TitleText}" FontSize="12" FontWeight="Medium" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" VerticalAlignment="Center" Foreground="{ThemeResource TitleShadowBrush}" Margin="0,1,0,0" Opacity="0.9" IsHitTestVisible="False" />
                 <TextBlock x:Name="TitleText" Text="Wallpaper Title" FontSize="12" FontWeight="Medium" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" VerticalAlignment="Center" Foreground="{ThemeResource WallpaperTitleBrush}" ToolTipService.ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
             </Grid>
@@ -70,8 +73,17 @@
 
         <VisualStateManager.VisualStateGroups>
             <VisualStateGroup x:Name="CommonStates">
-                <VisualState x:Name="Normal" />
+                <VisualState x:Name="Normal">
+                    <Storyboard>
+                        <DoubleAnimation Storyboard.TargetName="RootScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.15" />
+                        <DoubleAnimation Storyboard.TargetName="RootScale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.15" />
+                    </Storyboard>
+                </VisualState>
                 <VisualState x:Name="PointerOver">
+                    <Storyboard>
+                        <DoubleAnimation Storyboard.TargetName="RootScale" Storyboard.TargetProperty="ScaleX" To="1.04" Duration="0:0:0.15" />
+                        <DoubleAnimation Storyboard.TargetName="RootScale" Storyboard.TargetProperty="ScaleY" To="1.04" Duration="0:0:0.15" />
+                    </Storyboard>
                 </VisualState>
             </VisualStateGroup>
         </VisualStateManager.VisualStateGroups>

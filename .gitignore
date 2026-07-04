@@ -42,6 +42,7 @@ ehthumbs.db
 
 # 构建工具文件
 MSBuildLogs/
+installer/
 
 # 测试结果
 TestResults/

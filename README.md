@@ -38,7 +38,7 @@ WallpaperDock 是一个专为 Wallpaper Engine 设计的辅助工具，提供了
 
 - Windows 10 版本 19041.0 或更高版本
 - Windows 11
-- .NET 6.0 或更高版本
+- .NET 10.0 或更高版本（仅精简版安装包需要，完整版内置运行时）
 - Wallpaper Engine 已安装
 
 ## 安装说明
@@ -62,9 +62,49 @@ WallpaperDock 是一个专为 Wallpaper Engine 设计的辅助工具，提供了
    - 调试 > 开始执行（不调试）
 
 ### 方法二：使用发布版本
-1. 下载最新的发布版本
-2. 运行安装程序 `WallpaperDockSetup.exe` 并按照提示完成安装
+
+本项目提供两种安装包，请根据使用场景选择。
+
+#### 两种安装包对比
+
+| 项目 | Full（完整版） | Lite（精简版） |
+|------|---------------|---------------|
+| 文件名 | `WallpaperDockSetup_Full.exe` | `WallpaperDockSetup_Lite.exe` |
+| 体积 | 约 57 MB | 约 8 MB |
+| 部署模式 | Self-contained（自包含） | Framework-dependent（依赖框架） |
+| 用户机器要求 | 无任何运行时依赖 | 需预装 .NET 10 Desktop Runtime + Windows App SDK 运行时 |
+
+#### 推荐选择
+
+- **普通用户**：下载 **Full 完整版**，双击即可安装运行，无需关心任何环境配置。
+- **企业批量部署**：若已通过组策略统一推送 .NET 10 Desktop Runtime，可下载 **Lite 精简版**，节省带宽。
+- **开发者自用**：本机已装 .NET SDK，使用 **Lite 精简版** 即可。
+
+#### Lite 版运行时安装指南
+
+如果选择 Lite 精简版，首次运行时若弹出 ".NET Desktop Runtime 不可用" 对话框，请按以下顺序安装：
+
+1. **.NET 10 Desktop Runtime**
+
+   下载地址：<https://dotnet.microsoft.com/zh-cn/download/dotnet/10.0>
+
+   选择 `Windows x64 Desktop Runtime` 安装程序（`dotnet-runtime-10.x.x-win-x64.exe`）。
+
+2. **Windows App SDK 运行时**
+
+   下载地址：<https://learn.microsoft.com/zh-cn/windows/apps/windows-app-sdk/downloads>
+
+   在 "Latest downloads" 中选择 `Windows App Runtime 1.x` 下的 `x64` 安装包（文件名形如 `WindowsAppRuntimeInstall-x64.exe`）。
+
+> 安装完上述两个运行时后重启系统，再启动 Wallpaper Dock 即可。
+
+#### 安装步骤
+
+1. 下载对应版本的安装程序
+2. 运行 `WallpaperDockSetup_Full_x64_v*.exe` 或 `WallpaperDockSetup_Lite_x64_v*.exe` 并按照提示完成安装
 3. 安装完成后，启动应用
+
+> 注：完整版与精简版共用相同的 `AppId`，因此**两个安装包互斥**，安装其中一个会覆盖另一个，不会同时存在两个 Wallpaper Dock。
 
 ## 使用方法
 
@@ -127,7 +167,7 @@ WallpaperDock 是一个专为 Wallpaper Engine 设计的辅助工具，提供了
 如果您有任何问题、建议或反馈，请通过以下方式联系我们：
 
 - 创建 [Issue](https://github.com/yourusername/WallpaperDock/issues)
-- 发送邮件至：contact@wallpaperdock.com
+- 发送邮件至：spacervallam@gmail.com
 
 ---
 

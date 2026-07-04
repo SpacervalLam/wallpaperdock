@@ -592,12 +592,20 @@ namespace WallpaperDockWinUI.Views
                     System.Diagnostics.Debug.WriteLine($"Image cache load failed: {ex.Message}");
                 }
 
+                // 异步加载期间 Wallpaper 可能已被替换（GridView 虚拟化回收 / 数据切换）。
+                // 若已切换则丢弃这次加载结果，避免把旧壁纸的图设置到当前显示新壁纸的 Image 上。
+                if (!ReferenceEquals(this.Wallpaper, wallpaper))
+                    return;
+
                 // 在 UI 线程设置 Source
                 var dq = this.DispatcherQueue;
                 if (dq != null)
                 {
                     dq.TryEnqueue(() =>
                     {
+                        // 入队后再次检查，防止在等待调度期间 Wallpaper 又被切换
+                        if (!ReferenceEquals(this.Wallpaper, wallpaper))
+                            return;
                         if (this.PreviewImage != null)
                             this.PreviewImage.Source = image;
                     });
@@ -619,13 +627,15 @@ namespace WallpaperDockWinUI.Views
                 {
                     dq.TryEnqueue(() =>
                     {
-                        if (this.LoadingIndicator != null)
+                        // 仅当 Wallpaper 未被替换时才隐藏 loading 指示；
+                        // 若已被替换，新的加载流程会自行管理 loading 状态
+                        if (ReferenceEquals(this.Wallpaper, wallpaper) && this.LoadingIndicator != null)
                             this.LoadingIndicator.Visibility = Visibility.Collapsed;
                     });
                 }
                 else
                 {
-                    if (this.LoadingIndicator != null)
+                    if (ReferenceEquals(this.Wallpaper, wallpaper) && this.LoadingIndicator != null)
                         this.LoadingIndicator.Visibility = Visibility.Collapsed;
                 }
             }

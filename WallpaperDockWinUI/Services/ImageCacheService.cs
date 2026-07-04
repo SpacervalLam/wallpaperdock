@@ -3,14 +3,12 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using Windows.Storage;
-using Windows.Storage.Streams;
 
 namespace WallpaperDockWinUI.Services
 {
     public interface IImageCacheService
     {
-        Task<BitmapImage> LoadImageAsync(string imagePath, int desiredWidth = 180, int desiredHeight = 120);
+        Task<BitmapImage?> LoadImageAsync(string imagePath, int desiredWidth = 180, int desiredHeight = 120);
         void ClearCache();
     }
 
@@ -24,82 +22,69 @@ namespace WallpaperDockWinUI.Services
             _cache = new Dictionary<string, BitmapImage>();
         }
 
-        public async Task<BitmapImage> LoadImageAsync(string imagePath, int desiredWidth = 180, int desiredHeight = 120)
+        public Task<BitmapImage?> LoadImageAsync(string imagePath, int desiredWidth = 180, int desiredHeight = 120)
         {
             if (string.IsNullOrEmpty(imagePath) || !File.Exists(imagePath))
             {
-                return GetPlaceholderImage();
+                return Task.FromResult<BitmapImage?>(null);
             }
 
-            // Generate cache key based on image path and desired size
-            string cacheKey = $"{imagePath}_{desiredWidth}x{desiredHeight}";
-
-            // Try to get from cache first
-            if (_cache.ContainsKey(cacheKey))
-            {
-                return _cache[cacheKey];
-            }
-
+            // 规范化路径：Steam 注册表返回的 SteamPath 使用正斜杠，Path.Combine 不会规范化混合斜杠，
+            // 而 StorageFile / Uri 在 Windows 11 上对路径格式更敏感。这里统一规范化用作缓存键。
+            string fullPath;
             try
             {
-                // Load image asynchronously
-                BitmapImage image = await LoadAndResizeImageAsync(imagePath, desiredWidth, desiredHeight);
+                fullPath = Path.GetFullPath(imagePath);
+            }
+            catch
+            {
+                fullPath = imagePath;
+            }
 
-                // Add to cache
-                lock (_cacheLock)
+            string cacheKey = $"{fullPath}_{desiredWidth}x{desiredHeight}";
+
+            lock (_cacheLock)
+            {
+                if (_cache.TryGetValue(cacheKey, out BitmapImage? cached))
                 {
-                    if (!_cache.ContainsKey(cacheKey))
-                    {
-                        _cache[cacheKey] = image;
-                    }
+                    return Task.FromResult(cached);
                 }
-
-                return image;
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error loading image {imagePath}: {ex.Message}");
-                return GetPlaceholderImage();
-            }
-        }
 
-        private async Task<BitmapImage> LoadAndResizeImageAsync(string imagePath, int desiredWidth, int desiredHeight)
-        {
-            // 关键修改：BitmapImage 必须在 UI 线程创建
-            // 我们不需要 Task.Run，因为 SetSourceAsync 本身就是异步的，不会阻塞 UI
-            
             try
             {
-                // 1. 在 UI 线程创建对象
+                // 使用 UriSource 而非 StorageFile + SetSourceAsync(stream)：
+                // 1. BitmapImage 是 DependencyObject，SetSourceAsync 必须在 UI 线程调用；
+                //    而 await StorageFile.GetFileFromPathAsync 之后可能运行在线程池线程，
+                //    导致 SetSourceAsync 在非 UI 线程执行，图像静默加载失败（Windows 11 上更严格）
+                // 2. UriSource 是延迟加载：仅当 BitmapImage 被 Image 控件绑定时，
+                //    WinUI 才在 UI 线程上异步加载图像，从根本上避免线程亲和性问题
+                // 3. 同时也避免了 using 块提前释放 stream 的潜在风险
+                // 使用默认 Uri 构造（等价于 UriKind.RelativeOrAbsolute）：
+                // 对 "C:\foo\bar.jpg" 形式的 Windows 路径，Uri 解析器会自动识别盘符并构造
+                // file:/// URI；而 UriKind.Absolute 会因缺少 scheme 抛出 UriFormatException。
                 BitmapImage image = new BitmapImage();
-                
-                // 2. 设置解码尺寸（优化内存）
                 image.DecodePixelWidth = desiredWidth;
                 image.DecodePixelHeight = desiredHeight;
+                image.UriSource = new Uri(fullPath);
 
-                // 3. 异步读取文件流
-                StorageFile file = await StorageFile.GetFileFromPathAsync(imagePath);
-                using (IRandomAccessStream stream = await file.OpenAsync(FileAccessMode.Read))
+                lock (_cacheLock)
                 {
-                    // 4. 异步设置源
-                    await image.SetSourceAsync(stream);
+                    // 双重检查：并发场景下若另一线程已加载，则复用其结果
+                    if (_cache.TryGetValue(cacheKey, out BitmapImage? existing))
+                    {
+                        return Task.FromResult(existing);
+                    }
+                    _cache[cacheKey] = image;
                 }
 
-                return image;
+                return Task.FromResult(image);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error loading image {imagePath}: {ex.Message}");
-                return GetPlaceholderImage();
+                return Task.FromResult<BitmapImage?>(null);
             }
-        }
-
-        private BitmapImage GetPlaceholderImage()
-        {
-            // Return a placeholder image when loading fails
-            BitmapImage placeholder = new BitmapImage();
-            // You could set a default placeholder image here
-            return placeholder;
         }
 
         public void ClearCache()
@@ -109,12 +94,5 @@ namespace WallpaperDockWinUI.Services
                 _cache.Clear();
             }
         }
-    }
-
-    // Helper class for BitmapImage options
-    public class BitmapImageOptions
-    {
-        public int DecodePixelWidth { get; set; }
-        public int DecodePixelHeight { get; set; }
     }
 }

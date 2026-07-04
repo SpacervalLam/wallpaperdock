@@ -38,7 +38,9 @@ namespace WallpaperDockWinUI.Views
 
         private ProgressRing? _loadingRing;
         private GridView? _wallpaperList;
-        private TextBlock? _emptyText;
+        // EmptyText 在 XAML 中已从 TextBlock 改为 StackPanel（图标+主副文案的空状态），
+        // 这里只用到 Visibility 属性，所以用基类 FrameworkElement 即可兼容两种实现
+        private FrameworkElement? _emptyText;
 
         // Speech recognition
         private SpeechRecognizer? _speechRecognizer;

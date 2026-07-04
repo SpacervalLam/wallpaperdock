@@ -207,6 +207,18 @@ namespace WallpaperDockWinUI
                 try
                 {
                     window.AppWindow.SetPresenter(AppWindowPresenterKind.Default);
+
+                    // 修复：dock 窗口必须禁用最小化/最大化/调整大小，
+                    // 否则 OverlappedPresenter 默认允许这些操作，Ctrl+D / Win+D / Win+Down 等
+                    // 键盘事件都会把侧边栏错误最小化（即便 Win32 已移除 WS_MINIMIZEBOX，
+                    // WinUI 层的 IsMinimizable 仍是独立的，会响应系统命令）
+                    if (window.AppWindow.Presenter is OverlappedPresenter presenter)
+                    {
+                        presenter.IsMinimizable = false;
+                        presenter.IsMaximizable = false;
+                        presenter.IsResizable = false;
+                        presenter.IsAlwaysOnTop = false;
+                    }
                 }
                 catch { }
 
@@ -283,9 +295,14 @@ namespace WallpaperDockWinUI
         {
             // Stop auto-hide service
             _autoHideService?.Stop();
-            
+
             // Clean up tray icon service
             _trayIconService?.Dispose();
+
+            // 修复：ThemeService 实现了 IDisposable（订阅了 UISettings.ColorValuesChanged），
+            // 但 Cleanup 从未调用其 Dispose，导致系统主题变化回调在应用退出后仍被持有。
+            var themeService = Services.GetService<IThemeService>();
+            themeService?.Dispose();
         }
 
         private void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)

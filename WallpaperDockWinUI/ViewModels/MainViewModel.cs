@@ -191,16 +191,31 @@ namespace WallpaperDockWinUI.ViewModels
                     allWallpapers.AddRange(_wallpaperService.ScanWallpapers(workshopPath));
                 }
 
-                // Update favorites, categories and metadata
+                // 批量加载收藏/分类/元数据，避免在循环内逐项调用 IsFavorite/GetCategory/GetAlias 等
+                // 这些方法每次都会重新读取 favorites.json / categories.json / metadata.json，
+                // 1000 张壁纸原会触发 5000 次磁盘 I/O
+                var favoritesSet = _favoritesService.GetFavoritesSet();
+                var categoryMap = _favoritesService.GetAllCategoryMap();
+                var metadataMap = _favoritesService.GetAllMetadataMap();
+
                 foreach (var wallpaper in allWallpapers)
                 {
-                    wallpaper.IsFavorite = _favoritesService.IsFavorite(wallpaper.ProjectJsonPath!);
-                    wallpaper.Category = _favoritesService.GetCategory(wallpaper.ProjectJsonPath!);
+                    string path = wallpaper.ProjectJsonPath!;
+                    wallpaper.IsFavorite = favoritesSet.Contains(path);
+                    wallpaper.Category = categoryMap.TryGetValue(path, out var cat) ? cat : "All";
 
-                    // load alias, r18 flag and groups
-                    wallpaper.Alias = _favoritesService.GetAlias(wallpaper.ProjectJsonPath!);
-                    wallpaper.IsR18 = _favoritesService.IsR18(wallpaper.ProjectJsonPath!);
-                    wallpaper.Groups = _favoritesService.GetGroups(wallpaper.ProjectJsonPath!);
+                    if (metadataMap.TryGetValue(path, out var meta))
+                    {
+                        wallpaper.Alias = meta.Alias;
+                        wallpaper.IsR18 = meta.IsR18;
+                        wallpaper.Groups = meta.Groups != null ? new List<string>(meta.Groups) : null;
+                    }
+                    else
+                    {
+                        wallpaper.Alias = null;
+                        wallpaper.IsR18 = false;
+                        wallpaper.Groups = null;
+                    }
                 }
 
                 // Deduplicate wallpapers by ProjectJsonPath, prefer entries that have a PreviewPath set

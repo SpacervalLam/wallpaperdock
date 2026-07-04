@@ -32,6 +32,12 @@ namespace WallpaperDockWinUI.Services
         void AddGroup(string groupName);
         void RemoveGroup(string groupName);
         void RenameGroup(string oldGroupName, string newGroupName);
+
+        // 批量加载：避免在循环中逐项调用 Get*() 时反复重读同一份 JSON 文件
+        // （例：加载 1000 张壁纸时，原本会触发 5 * 1000 = 5000 次磁盘读取）
+        HashSet<string> GetFavoritesSet();
+        Dictionary<string, string> GetAllCategoryMap();
+        Dictionary<string, WallpaperMetadata> GetAllMetadataMap();
     }
 
     // 数据变更事件参数类
@@ -44,6 +50,10 @@ namespace WallpaperDockWinUI.Services
             DataType = dataType;
         }
     }
+
+    // 元数据记录：Alias/R18 标记/分组列表。提升为顶级 public record
+    // 以便 IFavoritesService 的批量加载接口能直接返回该类型。
+    public record WallpaperMetadata(string? Alias, bool IsR18, List<string>? Groups);
 
     public class FavoritesService : IFavoritesService
     {
@@ -72,8 +82,6 @@ namespace WallpaperDockWinUI.Services
             _metadataFilePath = Path.Combine(appFolderPath, "metadata.json");
             _groupsFilePath = Path.Combine(appFolderPath, "groups.json");
         }
-
-        private record WallpaperMetadata(string? Alias, bool IsR18, List<string>? Groups);
 
         private System.Collections.Generic.Dictionary<string, WallpaperMetadata> LoadAllMetadata()
         {
@@ -299,10 +307,10 @@ namespace WallpaperDockWinUI.Services
             {
                 if (string.IsNullOrWhiteSpace(oldGroupName) || string.IsNullOrWhiteSpace(newGroupName))
                     return;
-                
+
                 if (oldGroupName == newGroupName)
                     return;
-                
+
                 var groups = LoadGroups();
                 if (groups.Contains(oldGroupName))
                 {
@@ -313,7 +321,7 @@ namespace WallpaperDockWinUI.Services
                         groups.Add(newGroupName);
                     }
                     SaveGroups(groups);
-                    
+
                     // 更新所有使用该分组的壁纸的分组信息
                     var metadata = LoadAllMetadata();
                     foreach (var key in metadata.Keys)
@@ -323,12 +331,17 @@ namespace WallpaperDockWinUI.Services
                         {
                             var newGroups = new List<string>(wallpaperMetadata.Groups);
                             newGroups.Remove(oldGroupName);
-                            newGroups.Add(newGroupName);
+                            // 修复：壁纸可能同时属于 oldGroupName 和 newGroupName，
+                            // 重命名后会重复包含 newGroupName。先移除再添加，保证唯一。
+                            if (!newGroups.Contains(newGroupName))
+                            {
+                                newGroups.Add(newGroupName);
+                            }
                             metadata[key] = new WallpaperMetadata(wallpaperMetadata.Alias, wallpaperMetadata.IsR18, newGroups);
                         }
                     }
                     SaveAllMetadata(metadata);
-                    
+
                     OnDataChanged("groups");
                 }
             }
@@ -336,6 +349,47 @@ namespace WallpaperDockWinUI.Services
             {
                 Console.WriteLine($"Error renaming group: {ex.Message}");
             }
+        }
+
+        // 批量加载方法：单次磁盘读取后内存查找，避免在循环中反复重读 JSON
+        public HashSet<string> GetFavoritesSet()
+        {
+            try
+            {
+                if (File.Exists(_favoritesFilePath))
+                {
+                    string json = File.ReadAllText(_favoritesFilePath);
+                    var list = JsonSerializer.Deserialize<List<string>>(json);
+                    return list != null ? new HashSet<string>(list) : new HashSet<string>();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error reading favorites: {ex.Message}");
+            }
+            return new HashSet<string>();
+        }
+
+        public Dictionary<string, string> GetAllCategoryMap()
+        {
+            try
+            {
+                if (File.Exists(_categoriesFilePath))
+                {
+                    string json = File.ReadAllText(_categoriesFilePath);
+                    return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new Dictionary<string, string>();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error reading categories: {ex.Message}");
+            }
+            return new Dictionary<string, string>();
+        }
+
+        public Dictionary<string, WallpaperMetadata> GetAllMetadataMap()
+        {
+            return LoadAllMetadata();
         }
 
         public List<string> GetFavorites()

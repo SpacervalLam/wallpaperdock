@@ -1,6 +1,7 @@
 using Windows.UI;
 using Microsoft.UI.Xaml.Media;
 using System;
+using System.Globalization;
 
 namespace WallpaperDockWinUI.Services
 {
@@ -22,13 +23,15 @@ namespace WallpaperDockWinUI.Services
 
             try
             {
-                // Wallpaper Engine scheme color format: "0.1 0.5 0.8"
-                string[] parts = schemeColor.Split(' ');
+                // Wallpaper Engine scheme color format: "0.1 0.5 0.8" — 使用点作小数分隔符
+                // 必须用 InvariantCulture 解析：德/法/西等区域用逗号作小数点，
+                // 默认 float.Parse 会抛 FormatException，导致主题色退回默认蓝
+                string[] parts = schemeColor.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length >= 3)
                 {
-                    float r = float.Parse(parts[0]);
-                    float g = float.Parse(parts[1]);
-                    float b = float.Parse(parts[2]);
+                    float r = float.Parse(parts[0], CultureInfo.InvariantCulture);
+                    float g = float.Parse(parts[1], CultureInfo.InvariantCulture);
+                    float b = float.Parse(parts[2], CultureInfo.InvariantCulture);
 
                     // Clamp values to 0-1 range
                     r = Math.Clamp(r, 0, 1);
